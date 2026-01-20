@@ -47,6 +47,7 @@ SEED=${SEED:-42}
 NN_EPOCHS=${NN_EPOCHS:-100}
 NN_HIDDEN_DIM=${NN_HIDDEN_DIM:-256}
 NN_LR=${NN_LR:-0.001}
+INCLUDE_RANDOM_BASELINE=${INCLUDE_RANDOM_BASELINE:-false}
 
 # Validate required parameters
 if [ -z "${CSV_DIR}" ]; then
@@ -87,8 +88,18 @@ echo "  Batch size: ${BATCH_SIZE}"
 echo "  Max length: ${MAX_LENGTH}"
 echo "  Pooling: ${POOLING}"
 echo "  Seed: ${SEED}"
+echo "  NN epochs: ${NN_EPOCHS}"
+echo "  NN hidden dim: ${NN_HIDDEN_DIM}"
+echo "  NN learning rate: ${NN_LR}"
+echo "  Include random baseline: ${INCLUDE_RANDOM_BASELINE}"
 echo "============================================================"
 echo ""
+
+# Build random baseline flag
+RANDOM_BASELINE_FLAG=""
+if [ "${INCLUDE_RANDOM_BASELINE}" == "true" ]; then
+    RANDOM_BASELINE_FLAG="--include_random_baseline"
+fi
 
 # Run embedding analysis
 python -m src.embedding_analysis \
@@ -102,7 +113,8 @@ python -m src.embedding_analysis \
     --seed=${SEED} \
     --nn_epochs=${NN_EPOCHS} \
     --nn_hidden_dim=${NN_HIDDEN_DIM} \
-    --nn_lr=${NN_LR}
+    --nn_lr=${NN_LR} \
+    ${RANDOM_BASELINE_FLAG}
 
 echo ""
 echo "============================================================"
