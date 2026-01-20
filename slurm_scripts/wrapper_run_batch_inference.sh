@@ -23,20 +23,34 @@ INPUT_LIST="/path/to/input_files.txt"
 OUTPUT_DIR="/path/to/output_directory"
 
 # === REQUIRED: Model Configuration ===
-# Path to model config JSON
+# Path to model config JSON (same as used for training)
 CONFIG_PATH="/path/to/model_config.json"
 # Path to fine-tuned model checkpoint
 CHECKPOINT_PATH="/path/to/checkpoint.ckpt"
+
+# === Model Type (must match what you trained) ===
+# Options: hyena, mamba, caduceus
+MODEL="caduceus"
+# Options: dna_embedding, dna_embedding_mamba, dna_embedding_caduceus
+MODEL_NAME="dna_embedding_caduceus"
+
+# === Reverse Complement Settings (must match your trained model) ===
+# These settings MUST match what was used during fine-tuning!
+#
+# If you trained with...        | CONJOIN_TEST
+# ------------------------------|-------------
+# Caduceus-Ph (post-hoc RC)     | true
+# Caduceus-PS (RC equivariant)  | false
+# Mamba                         | false
+# Hyena                         | false
+#
+CONJOIN_TEST="true"
 
 # === OPTIONAL: Inference Parameters ===
 BATCH_SIZE="32"
 MAX_LENGTH="1024"
 D_OUTPUT="2"
 THRESHOLD="0.5"
-
-# === OPTIONAL: Reverse Complement ===
-# Set to "true" for Caduceus-Ph post-hoc conjoining, "false" otherwise
-CONJOIN_TEST="true"
 
 #####################################################################
 # END CONFIGURATION
@@ -93,10 +107,14 @@ echo "Submitting Caduceus Batch Inference Jobs"
 echo "=========================================="
 echo "Input list: ${INPUT_LIST}"
 echo "Output dir: ${OUTPUT_DIR}"
-echo "Checkpoint: ${CHECKPOINT_PATH}"
-echo "Config: ${CONFIG_PATH}"
 echo ""
-echo "Parameters:"
+echo "Model Configuration:"
+echo "  Model: ${MODEL}"
+echo "  Model name: ${MODEL_NAME}"
+echo "  Checkpoint: ${CHECKPOINT_PATH}"
+echo "  Config: ${CONFIG_PATH}"
+echo ""
+echo "Inference Parameters:"
 echo "  Batch size: ${BATCH_SIZE}"
 echo "  Max length: ${MAX_LENGTH}"
 echo "  D output: ${D_OUTPUT}"
