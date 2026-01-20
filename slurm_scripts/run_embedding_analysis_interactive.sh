@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# Interactive script for running Caduceus embedding analysis WITHOUT sbatch
+# Usage: bash run_embedding_analysis_interactive.sh [wrapper_script.sh]
+#
+# This script reads configuration from wrapper_run_embedding_analysis.sh (or specify another)
+# and runs the job directly on the current node.
+
+# Source the wrapper to get all the environment variables
+# Change this path if your wrapper has a different name
+WRAPPER_SCRIPT="${1:-wrapper_run_embedding_analysis.sh}"
+
+if [ ! -f "${WRAPPER_SCRIPT}" ]; then
+    echo "ERROR: Wrapper script not found: ${WRAPPER_SCRIPT}"
+    echo "Usage: bash run_embedding_analysis_interactive.sh [wrapper_script.sh]"
+    exit 1
+fi
+
+echo "============================================================"
+echo "Loading configuration from: ${WRAPPER_SCRIPT}"
+echo "============================================================"
+
+# Source the wrapper but just get the exports
+source <(grep "^export" "${WRAPPER_SCRIPT}")
+
+# Now run the main script logic
+
+echo ""
+echo "Caduceus Embedding Analysis (Interactive Mode)"
+echo "============================================================"
+echo "Job started at: $(date)"
+echo "Running on node: $(hostname)"
+echo ""
+
+# Load modules (comment out if not on Biowulf/HPC)
+module load conda 2>/dev/null || true
+module load cuda/12.8 2>/dev/null || true
+
+# Activate conda environment
+source activate caduceus_env
+
+# Ignore user site-packages to avoid conflicts with ~/.local packages
+export PYTHONNOUSERSITE=1
+
+# Check GPU availability
+echo ""
+echo "GPU Information:"
+nvidia-smi
+echo ""
+echo "Python environment:"
+which python
+python --version
+echo ""
+
+# Set defaults for optional parameters
+BATCH_SIZE=${BATCH_SIZE:-32}
+MAX_LENGTH=${MAX_LENGTH:-1024}
+POOLING=${POOLING:-mean}
+SEED=${SEED:-42}
+NN_EPOCHS=${NN_EPOCHS:-100}
+NN_HIDDEN_DIM=${NN_HIDDEN_DIM:-256}
+NN_LR=${NN_LR:-0.001}
+INCLUDE_RANDOM_BASELINE=${INCLUDE_RANDOM_BASELINE:-false}
+
+# Validate required parameters
+if [ -z "${CSV_DIR}" ]; then
+    echo "ERROR: CSV_DIR is not set"
+    exit 1
+fi
+
+if [ -z "${CHECKPOINT_PATH}" ]; then
+    echo "ERROR: CHECKPOINT_PATH is not set"
+    exit 1
+fi
+
+if [ -z "${CONFIG_PATH}" ]; then
+    echo "ERROR: CONFIG_PATH is not set"
+    exit 1
+fi
+
+# Navigate to repo root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "${SCRIPT_DIR}/.." || exit
+echo "Working directory: $(pwd)"
+
+# Add to PYTHONPATH
+export PYTHONPATH="${PWD}:${PYTHONPATH}"
+
+# Set output directory
+OUTPUT_DIR=${OUTPUT_DIR:-./outputs/embedding_analysis/$(basename ${CSV_DIR})}
+mkdir -p "${OUTPUT_DIR}"
+
+echo ""
+echo "============================================================"
+echo "Configuration:"
+echo "============================================================"
+echo "  Checkpoint: ${CHECKPOINT_PATH}"
+echo "  Config: ${CONFIG_PATH}"
+echo "  CSV dir: ${CSV_DIR}"
+echo "  Output dir: ${OUTPUT_DIR}"
+echo "  Batch size: ${BATCH_SIZE}"
+echo "  Max length: ${MAX_LENGTH}"
+echo "  Pooling: ${POOLING}"
+echo "  Seed: ${SEED}"
+echo "  NN epochs: ${NN_EPOCHS}"
+echo "  NN hidden dim: ${NN_HIDDEN_DIM}"
+echo "  NN learning rate: ${NN_LR}"
+echo "  Include random baseline: ${INCLUDE_RANDOM_BASELINE}"
+echo "============================================================"
+echo ""
+
+# Build random baseline flag
+RANDOM_BASELINE_FLAG=""
+if [ "${INCLUDE_RANDOM_BASELINE}" == "true" ]; then
+    RANDOM_BASELINE_FLAG="--include_random_baseline"
+fi
+
+# Run embedding analysis
+python -m src.embedding_analysis \
+    --csv_dir="${CSV_DIR}" \
+    --checkpoint_path="${CHECKPOINT_PATH}" \
+    --config_path="${CONFIG_PATH}" \
+    --output_dir="${OUTPUT_DIR}" \
+    --batch_size=${BATCH_SIZE} \
+    --max_length=${MAX_LENGTH} \
+    --pooling="${POOLING}" \
+    --seed=${SEED} \
+    --nn_epochs=${NN_EPOCHS} \
+    --nn_hidden_dim=${NN_HIDDEN_DIM} \
+    --nn_lr=${NN_LR} \
+    ${RANDOM_BASELINE_FLAG}
+
+echo ""
+echo "============================================================"
+echo "Job completed at: $(date)"
+echo "Results saved to: ${OUTPUT_DIR}"
+echo "============================================================"
