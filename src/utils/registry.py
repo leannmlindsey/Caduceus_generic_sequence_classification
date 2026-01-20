@@ -57,6 +57,7 @@ callbacks = {
     "timer": "src.callbacks.timer.Timer",
     "val_every_n_global_steps": "src.callbacks.validation.ValEveryNGlobalSteps",
     "test_results": "src.callbacks.test_results.TestResultsCallback",
+    "generalization_gap": "src.callbacks.generalization_gap.GeneralizationGapStopping",
 }
 
 model_state_hook = {

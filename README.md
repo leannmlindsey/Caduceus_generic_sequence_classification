@@ -74,7 +74,7 @@ export MODEL_NAME="dna_embedding_caduceus"    # Options: dna_embedding, dna_embe
 export LR="6e-4"                              # Learning rate
 export BATCH_SIZE="32"                        # Batch size (reduce if OOM)
 export MAX_LENGTH="1024"                      # Max sequence length (truncates longer sequences)
-export MAX_EPOCHS="100"                       # Training epochs
+export MAX_EPOCHS="20"                        # Training epochs (early stopping may trigger sooner)
 export D_OUTPUT="2"                           # Number of classes (2 for binary)
 ```
 
@@ -144,7 +144,67 @@ python -m train \
 - `wandb.project="name"` - Set project name
 - `wandb.name="name"` - Set run name
 
-### 6. Submit the Job
+### 6. Early Stopping (Generalization Gap)
+
+By default, training stops when the gap between training and validation accuracy exceeds a threshold, which helps prevent overfitting.
+
+**Expected Training Behavior:**
+
+With large datasets (e.g., 60k+ samples), training typically completes in **3-5 epochs** before the generalization gap triggers early stopping. The `max_epochs=20` setting is a ceiling, not a target. Training longer leads to overfitting where the model memorizes training data rather than learning generalizable patterns.
+
+| Dataset Size | Typical Epochs | Notes |
+|--------------|----------------|-------|
+| < 10k samples | 10-20 | May need more epochs to learn patterns |
+| 10k-50k samples | 5-10 | Moderate training time |
+| 50k+ samples | 3-5 | Early stopping usually triggers quickly |
+
+**How it works:**
+- Monitors `train/accuracy - val/accuracy` (the generalization gap)
+- Stops when the gap exceeds `max_gap` (default: 0.03) for `patience` consecutive epochs
+- Waits until `min_epochs` before checking (default: 2 epochs)
+- The best checkpoint (by validation accuracy) is always saved, regardless of when training stops
+
+**Configuration (in `configs/callbacks/generalization_gap.yaml`):**
+```yaml
+generalization_gap:
+  max_gap: 0.03        # Stop if train_acc - val_acc > this value
+  train_metric: "train/accuracy"
+  val_metric: "val/accuracy"
+  min_epochs: 2        # Don't check gap until this many epochs
+  patience: 2          # Consecutive epochs gap can exceed threshold
+  verbose: True
+```
+
+**To adjust the gap threshold via command line:**
+```bash
+python -m train experiment=csv_binary \
+  callbacks.generalization_gap.max_gap=0.05 \
+  callbacks.generalization_gap.patience=5 \
+  ...
+```
+
+**Alternative: Standard early stopping (monitors val/accuracy only)**
+
+Standard early stopping monitors only validation accuracy and stops when it plateaus, without considering the train/val gap. To use it instead, edit `configs/pipeline/csv_binary.yaml`:
+```yaml
+  - /callbacks: [base, checkpoint, test_results, early_stopping]  # swap generalization_gap for early_stopping
+```
+
+Standard early stopping config (`configs/callbacks/early_stopping.yaml`):
+```yaml
+early_stopping:
+  monitor: ${train.monitor}  # val/accuracy
+  patience: 10               # epochs with no improvement
+```
+
+**To disable all early stopping:**
+
+Edit `configs/pipeline/csv_binary.yaml`:
+```yaml
+  - /callbacks: [base, checkpoint, test_results]  # remove stopping callback
+```
+
+### 7. Submit the Job
 
 ```bash
 cd slurm_scripts
@@ -156,7 +216,7 @@ Or submit directly:
 sbatch --export=ALL,DATA_DIR=/path/to/data,CONFIG_PATH=/path/to/config.json,PRETRAINED_PATH=/path/to/ckpt.ckpt,DATASET_NAME=mydata run_csv_binary.sh
 ```
 
-### 7. Output and Test Metrics
+### 8. Output and Test Metrics
 
 **Output Directory Structure:**
 ```
@@ -216,7 +276,7 @@ preds = data['predictions']       # Predicted class labels
 labels = data['labels']           # True labels
 ```
 
-### 8. SLURM Scripts
+### 9. SLURM Scripts
 
 Two SLURM scripts are provided in `slurm_scripts/` for running on HPC clusters (configured for NIH Biowulf):
 
@@ -273,7 +333,7 @@ If your conda environment has a different name, edit this line in `run_csv_binar
 source activate caduceus_env     # Change 'caduceus_env' to your env name
 ```
 
-### 9. Embedding Analysis
+### 10. Embedding Analysis
 
 Extract embeddings from a model and analyze their quality using linear probes, silhouette scores, PCA visualization, and a 3-layer neural network classifier.
 
@@ -297,7 +357,7 @@ python -m src.embedding_analysis \
   - Silhouette score (embedding quality measure)
   - PCA explained variance
 
-### 10. Inference
+### 11. Inference
 
 Run inference on a CSV file to get predictions with probabilities for threshold analysis.
 

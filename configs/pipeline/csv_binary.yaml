@@ -6,7 +6,7 @@ defaults:
   - /task: binary_classification
   - /optimizer: adamw
   - /scheduler: plateau
-  - /callbacks: [base, checkpoint, test_results]
+  - /callbacks: [base, checkpoint, test_results, generalization_gap]
 
 train:
   monitor: val/accuracy
