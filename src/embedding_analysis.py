@@ -155,6 +155,33 @@ def load_csv_data(csv_dir: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFram
     return train_df, val_df, test_df
 
 
+def get_complement_map():
+    """
+    Create the complement map for DNA tokens, matching the tokenizer's vocabulary.
+
+    The vocabulary is:
+        "[CLS]": 0, "[SEP]": 1, "[BOS]": 2, "[MASK]": 3, "[PAD]": 4,
+        "[RESERVED]": 5, "[UNK]": 6, "A": 7, "C": 8, "G": 9, "T": 10, "N": 11
+
+    Complements: A<->T, C<->G, N<->N, special tokens map to themselves
+    """
+    complement_map = {
+        0: 0,   # [CLS] -> [CLS]
+        1: 1,   # [SEP] -> [SEP]
+        2: 2,   # [BOS] -> [BOS]
+        3: 3,   # [MASK] -> [MASK]
+        4: 4,   # [PAD] -> [PAD]
+        5: 5,   # [RESERVED] -> [RESERVED]
+        6: 6,   # [UNK] -> [UNK]
+        7: 10,  # A -> T
+        8: 9,   # C -> G
+        9: 8,   # G -> C
+        10: 7,  # T -> A
+        11: 11, # N -> N
+    }
+    return complement_map
+
+
 def load_caduceus_model(config_path: str, checkpoint_path: str, device: torch.device):
     """
     Load Caduceus model from config and checkpoint.
@@ -183,7 +210,12 @@ def load_caduceus_model(config_path: str, checkpoint_path: str, device: torch.de
     # Remove any Hydra-specific keys from top level
     config_dict = {k: v for k, v in config_dict.items() if not k.startswith('_')}
 
-    print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}")
+    # Add complement_map for RCPS models (required by Caduceus)
+    if config_dict.get('rcps', False) and 'complement_map' not in config_dict:
+        print(f"  Adding complement_map for RCPS model")
+        config_dict['complement_map'] = get_complement_map()
+
+    print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}, rcps={config_dict.get('rcps')}")
 
     config = CaduceusConfig(**config_dict)
     model = Caduceus(config)
@@ -267,7 +299,12 @@ def create_random_model(config_path: str, checkpoint_path: str, device: torch.de
     # Remove any Hydra-specific keys from top level
     config_dict = {k: v for k, v in config_dict.items() if not k.startswith('_')}
 
-    print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}")
+    # Add complement_map for RCPS models (required by Caduceus)
+    if config_dict.get('rcps', False) and 'complement_map' not in config_dict:
+        print(f"  Adding complement_map for RCPS model")
+        config_dict['complement_map'] = get_complement_map()
+
+    print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}, rcps={config_dict.get('rcps')}")
 
     config = CaduceusConfig(**config_dict)
 
