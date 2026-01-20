@@ -171,6 +171,20 @@ def load_caduceus_model(config_path: str, checkpoint_path: str, device: torch.de
     with open(config_path, 'r') as f:
         config_dict = json.load(f)
 
+    # Handle nested Hydra-style config where actual params are under 'config' key
+    # The JSON might look like: {"_name_": "...", "config": {"d_model": 256, ...}}
+    if 'config' in config_dict and isinstance(config_dict['config'], dict):
+        print(f"  Found nested 'config' key, extracting inner config")
+        inner_config = config_dict['config']
+        # Remove Hydra-specific keys like '_target_'
+        inner_config = {k: v for k, v in inner_config.items() if not k.startswith('_')}
+        config_dict = inner_config
+
+    # Remove any Hydra-specific keys from top level
+    config_dict = {k: v for k, v in config_dict.items() if not k.startswith('_')}
+
+    print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}")
+
     config = CaduceusConfig(**config_dict)
     model = Caduceus(config)
 
@@ -183,7 +197,7 @@ def load_caduceus_model(config_path: str, checkpoint_path: str, device: torch.de
     else:
         state_dict = checkpoint
 
-    # Remove 'model.' prefix if present (from PyTorch Lightning)
+    # Remove prefixes from state dict keys (from PyTorch Lightning)
     new_state_dict = {}
     for key, value in state_dict.items():
         # Try different key patterns
@@ -205,19 +219,25 @@ def load_caduceus_model(config_path: str, checkpoint_path: str, device: torch.de
         new_state_dict[new_key] = value
 
     # Load state dict with strict=False to handle missing keys
-    model.load_state_dict(new_state_dict, strict=False)
+    missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
+    if missing:
+        print(f"  Missing keys (will use random init): {len(missing)}")
+    if unexpected:
+        print(f"  Unexpected keys (ignored): {len(unexpected)}")
+
     model = model.to(device)
     model.eval()
 
     return model, config
 
 
-def create_random_model(config_path: str, device: torch.device, seed: int = 42):
+def create_random_model(config_path: str, checkpoint_path: str, device: torch.device, seed: int = 42):
     """
     Create a randomly initialized Caduceus model (same architecture, no pretrained weights).
 
     Args:
         config_path: Path to config JSON file
+        checkpoint_path: Path to checkpoint file (unused, kept for API compatibility)
         device: Device to load model on
         seed: Random seed for reproducibility
 
@@ -235,6 +255,19 @@ def create_random_model(config_path: str, device: torch.device, seed: int = 42):
     print(f"Loading config from: {config_path}")
     with open(config_path, 'r') as f:
         config_dict = json.load(f)
+
+    # Handle nested Hydra-style config where actual params are under 'config' key
+    if 'config' in config_dict and isinstance(config_dict['config'], dict):
+        print(f"  Found nested 'config' key, extracting inner config")
+        inner_config = config_dict['config']
+        # Remove Hydra-specific keys like '_target_'
+        inner_config = {k: v for k, v in inner_config.items() if not k.startswith('_')}
+        config_dict = inner_config
+
+    # Remove any Hydra-specific keys from top level
+    config_dict = {k: v for k, v in config_dict.items() if not k.startswith('_')}
+
+    print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}")
 
     config = CaduceusConfig(**config_dict)
 
@@ -767,7 +800,7 @@ def main():
         print("# RANDOM BASELINE MODEL ANALYSIS")
         print("#" * 60)
 
-        random_model, _ = create_random_model(args.config_path, device, seed=args.seed + 1000)
+        random_model, _ = create_random_model(args.config_path, args.checkpoint_path, device, seed=args.seed + 1000)
 
         # Extract embeddings from random model
         print("\nExtracting train embeddings (random)...")
