@@ -38,38 +38,51 @@ GGCCAATTGGCC...,0
 
 > **Note:** The HuggingFace checkpoints are not directly compatible with this fine-tuning pipeline (see [this issue](https://github.com/kuleshov-group/caduceus/issues/72) for details). You need to pretrain your own model using this codebase, or use an existing checkpoint that was trained with this repository.
 
-To pretrain a Caduceus model, follow the [Pretraining on Human Reference Genome](#pretraining) instructions in the original README below. After pretraining, you will have:
-- A checkpoint file (e.g., `outputs/pretrain/.../checkpoints/last.ckpt`)
-- A config file (e.g., `outputs/pretrain/.../model_config.json`)
+To pretrain a Caduceus model, follow the [Pretraining on Human Reference Genome](#pretraining) instructions in the original README below.
+
+**After pretraining, locate these two files in your pretraining output directory:**
+
+```
+outputs/pretrain/hg38/<your_pretraining_run_name>/
+├── model_config.json          # <-- CONFIG_PATH: Model architecture configuration
+└── checkpoints/
+    └── last.ckpt              # <-- PRETRAINED_PATH: Model weights
+```
+
+You will need the full paths to both `model_config.json` and `last.ckpt` for fine-tuning.
 
 ### 3. Configure the SLURM Script
 
-Edit `slurm_scripts/wrapper_run_csv_binary.sh`:
+> **Important:** You only need to edit **one file**: `slurm_scripts/wrapper_run_csv_binary.sh`. The config files in `configs/` do not need to be modified.
+
+Edit `slurm_scripts/wrapper_run_csv_binary.sh` with your paths:
 
 ```bash
 # === REQUIRED: Dataset Configuration ===
-export DATA_DIR="/path/to/my_dataset"        # Directory with train.csv, dev.csv, test.csv
-export DATASET_NAME="my_dataset"              # Name for output directory
+export DATA_DIR="/path/to/my_dataset"        # Directory containing train.csv, dev.csv, test.csv
+export DATASET_NAME="my_dataset"              # Name for output directory (no spaces)
 
-# === REQUIRED: Model Configuration ===
-export CONFIG_PATH="/path/to/model_config.json"
-export PRETRAINED_PATH="/path/to/checkpoint.ckpt"
+# === REQUIRED: Model Configuration (from your pretraining output) ===
+export CONFIG_PATH="/path/to/outputs/pretrain/hg38/<run_name>/model_config.json"
+export PRETRAINED_PATH="/path/to/outputs/pretrain/hg38/<run_name>/checkpoints/last.ckpt"
 
-# === Model Type ===
+# === Model Type (must match what you pretrained) ===
 export MODEL="caduceus"                       # Options: hyena, mamba, caduceus
 export MODEL_NAME="dna_embedding_caduceus"    # Options: dna_embedding, dna_embedding_mamba, dna_embedding_caduceus
 
-# === Hyperparameters ===
-export LR="6e-4"
-export BATCH_SIZE="32"
+# === Hyperparameters (adjust as needed) ===
+export LR="6e-4"                              # Learning rate
+export BATCH_SIZE="32"                        # Batch size (reduce if OOM)
 export MAX_LENGTH="1024"                      # Max sequence length (truncates longer sequences)
-export MAX_EPOCHS="100"
-export D_OUTPUT="2"                           # Number of classes
+export MAX_EPOCHS="100"                       # Training epochs
+export D_OUTPUT="2"                           # Number of classes (2 for binary)
 ```
 
 ### 4. Understanding Reverse Complement Parameters
 
-Caduceus has special handling for reverse complement (RC) sequences. The parameters depend on which model variant you use:
+> **Important:** The RC parameters you use for fine-tuning **must match** the model variant you pretrained. Using mismatched settings will result in poor performance or errors.
+
+Caduceus has special handling for reverse complement (RC) sequences. The parameters depend on which model variant you pretrained:
 
 **Caduceus Variants:**
 - **Caduceus-Ph (Post-hoc)**: Runs both forward and reverse complement sequences through the model at test time, then averages predictions.
@@ -83,16 +96,23 @@ Caduceus has special handling for reverse complement (RC) sequences. The paramet
 | `CONJOIN_TRAIN_DECODER` | If `true`, decoder expects input with shape `(..., 2)` and combines both channels |
 | `RC_AUG` | If `true`, randomly apply RC augmentation during training |
 
-**Recommended Settings by Model:**
+**Required Settings by Pretrained Model Type:**
 
-| Model | `CONJOIN_TEST` | `CONJOIN_TRAIN_DECODER` | `RC_AUG` |
-|-------|----------------|-------------------------|----------|
+| If you pretrained... | `CONJOIN_TEST` | `CONJOIN_TRAIN_DECODER` | `RC_AUG` |
+|----------------------|----------------|-------------------------|----------|
 | **Caduceus-Ph** | `true` | `false` | `false` |
 | **Caduceus-PS** | `false` | `true` | `false` |
 | **Mamba** | `false` | `false` | `true` |
 | **Hyena** | `false` | `false` | `true` |
 
-The default settings in the SLURM scripts are configured for **Caduceus-Ph**.
+The default settings in the SLURM scripts are configured for **Caduceus-Ph**. If you pretrained a different model variant, update these parameters in `wrapper_run_csv_binary.sh`:
+
+```bash
+# === Reverse Complement Settings (must match your pretrained model) ===
+export CONJOIN_TEST="true"              # true for Caduceus-Ph, false for others
+export CONJOIN_TRAIN_DECODER="false"    # true for Caduceus-PS, false for others
+export RC_AUG="false"                   # true for Mamba/Hyena, false for Caduceus
+```
 
 ### 5. Submit the Job
 
