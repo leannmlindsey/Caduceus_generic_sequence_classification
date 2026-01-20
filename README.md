@@ -34,13 +34,13 @@ GGCCAATTGGCC...,0
 - `sequence`: DNA sequence (A, C, G, T, N characters)
 - `label`: Integer class label (0, 1 for binary; 0, 1, 2, ... for multiclass)
 
-### 2. Download a Pretrained Model
+### 2. Pretrain a Model (or use existing checkpoint)
 
-Download a pretrained Caduceus model from HuggingFace:
-- [Caduceus-Ph (131k)](https://huggingface.co/kuleshov-group/caduceus-ph_seqlen-131k_d_model-256_n_layer-16)
-- [Caduceus-PS (131k)](https://huggingface.co/kuleshov-group/caduceus-ps_seqlen-131k_d_model-256_n_layer-16)
+> **Note:** The HuggingFace checkpoints are not directly compatible with this fine-tuning pipeline (see [this issue](https://github.com/kuleshov-group/caduceus/issues/72) for details). You need to pretrain your own model using this codebase, or use an existing checkpoint that was trained with this repository.
 
-Or use your own pretrained checkpoint.
+To pretrain a Caduceus model, follow the [Pretraining on Human Reference Genome](#pretraining) instructions in the original README below. After pretraining, you will have:
+- A checkpoint file (e.g., `outputs/pretrain/.../checkpoints/last.ckpt`)
+- A config file (e.g., `outputs/pretrain/.../model_config.json`)
 
 ### 3. Configure the SLURM Script
 
