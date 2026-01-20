@@ -78,6 +78,8 @@ export MAX_EPOCHS="20"                        # Training epochs (early stopping 
 export D_OUTPUT="2"                           # Number of classes (2 for binary)
 ```
 
+> **Learning Rate:** Start with `6e-4`. If training produces NaN loss, reduce to `1e-4` or `5e-5`. Some random seeds may require lower learning rates for stability.
+
 ### 4. Understanding Reverse Complement Parameters
 
 > **Important:** The RC parameters you use for fine-tuning **must match** the model variant you pretrained. Using mismatched settings will result in poor performance or errors.
