@@ -192,24 +192,25 @@ class SequenceDecoder(nn.Module):
 
     def forward(self, x, state=None, lengths=None, l_output=None):
         """
-        x: (n_batch, l_seq, d_model) or (n_batch, l_seq, d_model, 2) if using conjoin
+        x: (n_batch, l_seq, d_model) or (n_batch, l_seq, d_model, 2) if using conjoin/RCPS
         Returns: (n_batch, d_output)
         """
         l_output = self.l_output
         squeeze = self.squeeze
 
+        # Restrict along sequence dimension (dim=1), not using ellipsis which fails for 4D
         if self.mode == "last":
-            x = x[..., -l_output:, :]
+            x = x[:, -l_output:, ...]
         elif self.mode == "first":
-            x = x[..., :l_output, :]
+            x = x[:, :l_output, ...]
         elif self.mode == "pool":
             x = x.mean(dim=1, keepdim=True)
         else:
             raise NotImplementedError(f"Mode {self.mode} not implemented")
 
         if squeeze:
-            assert x.size(-3) == 1  # Changed from size(1) to size(-3) for conjoin case
-            x = x.squeeze(-3)
+            assert x.size(1) == 1
+            x = x.squeeze(1)
 
         if self.conjoin_train or (self.conjoin_test and not self.training):
             x, x_rc = x.chunk(2, dim=-1)
