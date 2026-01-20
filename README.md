@@ -451,17 +451,21 @@ python -m src.inference \
 /path/to/dataset3.csv
 ```
 
-2. Run the batch submission script:
+2. Edit `slurm_scripts/wrapper_run_batch_inference.sh`:
 ```bash
-cd slurm_scripts
-./submit_batch_inference.sh \
-    --input_list /path/to/input_files.txt \
-    --output_dir /path/to/output_directory \
-    --checkpoint /path/to/checkpoint.ckpt \
-    --config /path/to/config.json
+INPUT_LIST="/path/to/input_files.txt"
+OUTPUT_DIR="/path/to/output_directory"
+CONFIG_PATH="/path/to/model_config.json"
+CHECKPOINT_PATH="/path/to/checkpoint.ckpt"
 ```
 
-This submits a separate SLURM job for each input file.
+3. Run the wrapper:
+```bash
+cd slurm_scripts
+bash wrapper_run_batch_inference.sh
+```
+
+This submits a separate SLURM job for each input file. All predictions and logs are saved to the output directory.
 
 **Output CSV columns:**
 - `sequence`: Original sequence
@@ -498,6 +502,7 @@ This submits a separate SLURM job for each input file.
 | `slurm_scripts/wrapper_run_embedding_analysis.sh` | Wrapper for embedding analysis submission |
 | `slurm_scripts/run_embedding_analysis_interactive.sh` | Interactive embedding analysis |
 | `slurm_scripts/run_inference.sh` | SLURM job script for inference |
+| `slurm_scripts/wrapper_run_batch_inference.sh` | Wrapper for batch inference configuration |
 | `slurm_scripts/submit_batch_inference.sh` | Batch submission for multiple inference jobs |
 
 ---
