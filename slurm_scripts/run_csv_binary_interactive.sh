@@ -40,6 +40,9 @@ module load cuda/12.8 2>/dev/null || true
 # Activate conda environment
 source activate caduceus_env
 
+# Ignore user site-packages to avoid conflicts with ~/.local packages
+export PYTHONNOUSERSITE=1
+
 # Check GPU availability
 echo ""
 echo "GPU Information:"
@@ -60,9 +63,9 @@ MAX_LENGTH=${MAX_LENGTH:-1024}
 MAX_EPOCHS=${MAX_EPOCHS:-100}
 D_OUTPUT=${D_OUTPUT:-2}
 RC_AUG=${RC_AUG:-false}
-SEED=${SEED:-2222}
 CONJOIN_TRAIN_DECODER=${CONJOIN_TRAIN_DECODER:-false}
 CONJOIN_TEST=${CONJOIN_TEST:-true}
+NUM_REPLICATES=${NUM_REPLICATES:-1}
 
 # Validate required parameters
 if [ -z "${DATA_DIR}" ]; then
@@ -88,10 +91,14 @@ echo "Working directory: $(pwd)"
 # Add to PYTHONPATH
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 
-# Set output directory
+# Determine seeds to run
+if [ "${NUM_REPLICATES}" -eq 1 ]; then
+    SEEDS="2222"
+else
+    SEEDS=$(seq 1 ${NUM_REPLICATES})
+fi
+
 DISPLAY_NAME="${MODEL}_lr-${LR}_batch_size-${BATCH_SIZE}_rc_aug-${RC_AUG}"
-HYDRA_RUN_DIR="./outputs/downstream/csv_binary/${DATASET_NAME}/${DISPLAY_NAME}/seed-${SEED}"
-mkdir -p "${HYDRA_RUN_DIR}"
 
 echo ""
 echo "============================================================"
@@ -110,37 +117,53 @@ echo "  Max epochs: ${MAX_EPOCHS}"
 echo "  Output classes: ${D_OUTPUT}"
 echo "  RC augmentation: ${RC_AUG}"
 echo "  Conjoin test: ${CONJOIN_TEST}"
-echo "  Seed: ${SEED}"
-echo "  Output dir: ${HYDRA_RUN_DIR}"
+echo "  Replicates: ${NUM_REPLICATES}"
 echo "============================================================"
 echo ""
 
-# Run training
-python -m train \
-  experiment=csv_binary \
-  callbacks.model_checkpoint_every_n_steps.every_n_train_steps=5000 \
-  dataset.data_dir="${DATA_DIR}" \
-  dataset.max_length=${MAX_LENGTH} \
-  dataset.d_output=${D_OUTPUT} \
-  dataset.batch_size=${BATCH_SIZE} \
-  dataset.rc_aug="${RC_AUG}" \
-  +dataset.conjoin_train=false \
-  +dataset.conjoin_test="${CONJOIN_TEST}" \
-  model="${MODEL}" \
-  model._name_="${MODEL_NAME}" \
-  +model.config_path="${CONFIG_PATH}" \
-  +model.conjoin_test="${CONJOIN_TEST}" \
-  +decoder.conjoin_train="${CONJOIN_TRAIN_DECODER}" \
-  +decoder.conjoin_test="${CONJOIN_TEST}" \
-  optimizer.lr="${LR}" \
-  trainer.max_epochs=${MAX_EPOCHS} \
-  train.pretrained_model_path="${PRETRAINED_PATH}" \
-  train.seed=${SEED} \
-  wandb=null \
-  hydra.run.dir="${HYDRA_RUN_DIR}"
+# Run training for each seed
+for SEED in ${SEEDS}; do
+    HYDRA_RUN_DIR="./outputs/downstream/csv_binary/${DATASET_NAME}/${DISPLAY_NAME}/seed-${SEED}"
+    mkdir -p "${HYDRA_RUN_DIR}"
+
+    echo ""
+    echo "============================================================"
+    echo "Running replicate with seed ${SEED}"
+    echo "Output dir: ${HYDRA_RUN_DIR}"
+    echo "============================================================"
+    echo ""
+
+    python -m train \
+      experiment=csv_binary \
+      callbacks.model_checkpoint_every_n_steps.every_n_train_steps=5000 \
+      dataset.data_dir="${DATA_DIR}" \
+      dataset.max_length=${MAX_LENGTH} \
+      dataset.d_output=${D_OUTPUT} \
+      dataset.batch_size=${BATCH_SIZE} \
+      dataset.rc_aug="${RC_AUG}" \
+      +dataset.conjoin_train=false \
+      +dataset.conjoin_test="${CONJOIN_TEST}" \
+      model="${MODEL}" \
+      model._name_="${MODEL_NAME}" \
+      +model.config_path="${CONFIG_PATH}" \
+      +model.conjoin_test="${CONJOIN_TEST}" \
+      +decoder.conjoin_train="${CONJOIN_TRAIN_DECODER}" \
+      +decoder.conjoin_test="${CONJOIN_TEST}" \
+      optimizer.lr="${LR}" \
+      trainer.max_epochs=${MAX_EPOCHS} \
+      train.pretrained_model_path="${PRETRAINED_PATH}" \
+      train.seed=${SEED} \
+      wandb=null \
+      hydra.run.dir="${HYDRA_RUN_DIR}"
+
+    echo ""
+    echo "============================================================"
+    echo "Replicate ${SEED} completed at: $(date)"
+    echo "Results saved to: ${HYDRA_RUN_DIR}"
+    echo "============================================================"
+done
 
 echo ""
 echo "============================================================"
-echo "Job completed at: $(date)"
-echo "Results saved to: ${HYDRA_RUN_DIR}"
+echo "All ${NUM_REPLICATES} replicate(s) completed!"
 echo "============================================================"

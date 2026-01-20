@@ -243,6 +243,56 @@ If your conda environment has a different name, edit this line in `run_csv_binar
 source activate caduceus_env     # Change 'caduceus_env' to your env name
 ```
 
+### 8. Embedding Analysis
+
+Extract embeddings from a model and analyze their quality using linear probes, silhouette scores, PCA visualization, and a 3-layer neural network classifier.
+
+```bash
+python -m src.embedding_analysis \
+    --csv_dir="/path/to/csv/data" \
+    --checkpoint_path="/path/to/checkpoint.ckpt" \
+    --config_path="/path/to/config.json" \
+    --output_dir="./outputs/embedding_analysis" \
+    --pooling="mean" \
+    --batch_size=32
+```
+
+**Outputs:**
+- `embeddings.npz`: Extracted embeddings for train/val/test sets
+- `pca_visualization.png`: PCA plot showing class separation
+- `three_layer_nn.pt`: Trained 3-layer NN classifier weights
+- `embedding_analysis_results.json`: All metrics including:
+  - Linear probe accuracy, F1, MCC, AUC
+  - 3-layer NN accuracy, F1, MCC, AUC
+  - Silhouette score (embedding quality measure)
+  - PCA explained variance
+
+### 9. Inference
+
+Run inference on a CSV file to get predictions with probabilities for threshold analysis.
+
+```bash
+python -m src.inference \
+    --input_csv="/path/to/test.csv" \
+    --checkpoint_path="/path/to/checkpoint.ckpt" \
+    --config_path="/path/to/config.json" \
+    --output_csv="/path/to/predictions.csv" \
+    --threshold=0.5 \
+    --conjoin_test \
+    --save_metrics
+```
+
+**Output CSV columns:**
+- `sequence`: Original sequence
+- `label`: Original label (if present)
+- `prob_0`, `prob_1`: Class probabilities
+- `pred_label`: Predicted label
+
+**Key options:**
+- `--threshold`: Custom classification threshold for sensitivity/specificity tradeoff analysis (default: 0.5)
+- `--conjoin_test`: Use post-hoc reverse complement averaging (recommended for Caduceus-Ph)
+- `--save_metrics`: Calculate and save metrics to JSON if labels are present
+
 ### Key Files Added in This Fork
 
 | File | Description |
@@ -250,11 +300,15 @@ source activate caduceus_env     # Change 'caduceus_env' to your env name
 | `src/dataloaders/datasets/csv_dataset.py` | PyTorch Dataset for loading CSV files |
 | `src/dataloaders/genomics.py` | Added `CSVDatasetLoader` class |
 | `src/callbacks/test_results.py` | Callback for computing metrics with scikit-learn |
+| `src/embedding_analysis.py` | Extract embeddings, linear probe, PCA, 3-layer NN |
+| `src/inference.py` | Run inference with probability outputs |
 | `configs/experiment/csv_binary.yaml` | Experiment config for CSV classification |
 | `configs/pipeline/csv_binary.yaml` | Pipeline config |
 | `configs/dataset/csv_dataset.yaml` | Dataset config |
 | `slurm_scripts/run_csv_binary.sh` | SLURM job script (Biowulf compatible) |
 | `slurm_scripts/wrapper_run_csv_binary.sh` | Helper script for job submission |
+| `slurm_scripts/run_embedding_analysis.sh` | SLURM script for embedding analysis |
+| `slurm_scripts/run_inference.sh` | SLURM script for inference |
 
 ---
 

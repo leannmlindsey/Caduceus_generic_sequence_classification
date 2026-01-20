@@ -43,7 +43,11 @@ export MAX_LENGTH="1024"
 export MAX_EPOCHS="100"
 export D_OUTPUT="2"
 export RC_AUG="false"
-export SEED="2222"
+
+# === Replicates ===
+# Set NUM_REPLICATES=1 for a single run, or higher for multiple seeds
+# Seeds will be 1, 2, 3, ... NUM_REPLICATES
+NUM_REPLICATES=1
 
 #####################################################################
 # END CONFIGURATION
@@ -87,17 +91,30 @@ if [ ! -f "${PRETRAINED_PATH}" ]; then
 fi
 
 echo "=========================================="
-echo "Submitting Caduceus CSV Binary Job"
+echo "Submitting Caduceus CSV Binary Job(s)"
 echo "=========================================="
 echo "Dataset: ${DATASET_NAME}"
 echo "Data dir: ${DATA_DIR}"
 echo "Model: ${MODEL}"
 echo "Checkpoint: ${PRETRAINED_PATH}"
 echo "LR: ${LR}, Batch: ${BATCH_SIZE}, Epochs: ${MAX_EPOCHS}"
+echo "Replicates: ${NUM_REPLICATES}"
 echo "=========================================="
 
-# Submit the job
-sbatch --export=ALL run_csv_binary.sh
+# Submit job(s)
+if [ "${NUM_REPLICATES}" -eq 1 ]; then
+    # Single run with default seed
+    export SEED=2222
+    echo "Submitting single job with seed ${SEED}..."
+    sbatch --export=ALL run_csv_binary.sh
+else
+    # Multiple replicates with seeds 1 to NUM_REPLICATES
+    for SEED in $(seq 1 ${NUM_REPLICATES}); do
+        export SEED
+        echo "Submitting replicate ${SEED}/${NUM_REPLICATES} with seed ${SEED}..."
+        sbatch --export=ALL --job-name="cad_${DATASET_NAME}_s${SEED}" run_csv_binary.sh
+    done
+fi
 
 echo ""
-echo "Job submitted. Monitor with: squeue -u \$USER"
+echo "${NUM_REPLICATES} job(s) submitted. Monitor with: squeue -u \$USER"

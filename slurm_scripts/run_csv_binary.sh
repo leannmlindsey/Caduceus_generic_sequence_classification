@@ -42,6 +42,9 @@ module load cuda/12.8
 # Activate conda environment
 source activate caduceus_env
 
+# Ignore user site-packages to avoid conflicts with ~/.local packages
+export PYTHONNOUSERSITE=1
+
 # Check GPU availability
 echo ""
 echo "GPU Information:"
