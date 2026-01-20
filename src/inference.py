@@ -436,10 +436,15 @@ def calculate_metrics(
     metrics["sensitivity"] = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
     metrics["specificity"] = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
 
+    # Confusion matrix values (both short and long names)
+    metrics["TP"] = int(tp)
+    metrics["TN"] = int(tn)
+    metrics["FP"] = int(fp)
+    metrics["FN"] = int(fn)
+    metrics["true_positives"] = int(tp)
     metrics["true_negatives"] = int(tn)
     metrics["false_positives"] = int(fp)
     metrics["false_negatives"] = int(fn)
-    metrics["true_positives"] = int(tp)
 
     return metrics
 
