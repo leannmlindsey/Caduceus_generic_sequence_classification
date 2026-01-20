@@ -62,17 +62,15 @@ if [ -z "${CONFIG_PATH}" ]; then
     exit 1
 fi
 
-# Navigate to repo root
-# Use REPO_ROOT if provided (when called via sbatch), otherwise compute from BASH_SOURCE
-if [ -n "${REPO_ROOT}" ]; then
-    cd "${REPO_ROOT}" || exit
-else
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    cd "${SCRIPT_DIR}/.." || exit
-fi
+# ============================================================
+# IMPORTANT: Update this path to your repo location on the cluster
+# ============================================================
+SCRIPT_DIR="/gpfs/gsfs12/users/lindseylm/GLM_EVALUATIONS/MODELS/CADUCEUS_GENERIC/Caduceus_generic_sequence_classification"
+
+cd "${SCRIPT_DIR}" || exit
 echo "Working directory: $(pwd)"
 
-export PYTHONPATH="${PWD}:${PYTHONPATH}"
+export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
 
 # Set output path
 if [ -z "${OUTPUT_CSV}" ]; then
