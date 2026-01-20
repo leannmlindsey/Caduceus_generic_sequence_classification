@@ -365,6 +365,28 @@ source activate caduceus_env     # Change 'caduceus_env' to your env name
 
 Extract embeddings from a model and analyze their quality using linear probes, silhouette scores, PCA visualization, and a 3-layer neural network classifier.
 
+**Using the SLURM wrapper (recommended):**
+
+1. Edit `slurm_scripts/wrapper_run_embedding_analysis.sh`:
+```bash
+export CSV_DIR="/path/to/csv/data"           # Directory with train.csv, dev.csv, test.csv
+export CONFIG_PATH="/path/to/model_config.json"
+export CHECKPOINT_PATH="/path/to/checkpoint.ckpt"
+export INCLUDE_RANDOM_BASELINE="true"        # Compare against random init baseline
+```
+
+2. Submit the job:
+```bash
+cd slurm_scripts
+bash wrapper_run_embedding_analysis.sh
+```
+
+**Or run interactively** (useful for debugging or in an interactive SLURM session):
+```bash
+bash run_embedding_analysis_interactive.sh
+```
+
+**Direct command:**
 ```bash
 python -m src.embedding_analysis \
     --csv_dir="/path/to/csv/data" \
@@ -372,23 +394,42 @@ python -m src.embedding_analysis \
     --config_path="/path/to/config.json" \
     --output_dir="./outputs/embedding_analysis" \
     --pooling="mean" \
-    --batch_size=32
+    --batch_size=32 \
+    --include_random_baseline
 ```
 
 **Outputs:**
-- `embeddings.npz`: Extracted embeddings for train/val/test sets
-- `pca_visualization.png`: PCA plot showing class separation
-- `three_layer_nn.pt`: Trained 3-layer NN classifier weights
-- `embedding_analysis_results.json`: All metrics including:
-  - Linear probe accuracy, F1, MCC, AUC
-  - 3-layer NN accuracy, F1, MCC, AUC
-  - Silhouette score (embedding quality measure)
-  - PCA explained variance
+
+| File | Description |
+|------|-------------|
+| `embeddings_pretrained.npz` | Extracted embeddings for train/val/test sets |
+| `test_predictions_pretrained.csv` | Test set predictions with probabilities |
+| `pca_visualization_pretrained.png` | PCA plot showing class separation |
+| `three_layer_nn_pretrained.pt` | Trained 3-layer NN classifier weights |
+| `embedding_analysis_results.json` | All metrics (see below) |
+
+If `--include_random_baseline` is set, additional files with `_random` suffix are created for comparison.
+
+**Test predictions CSV columns:**
+- `sequence`: Original DNA sequence
+- `label`: Ground truth label
+- `linear_probe_pred`: Linear probe predicted label
+- `linear_probe_prob`: Linear probe probability (class 1)
+- `nn_pred`: 3-layer NN predicted label
+- `nn_prob`: 3-layer NN probability (class 1)
+
+**Metrics in `embedding_analysis_results.json`:**
+- Linear probe: accuracy, F1, MCC, AUC, sensitivity, specificity
+- 3-layer NN: accuracy, F1, MCC, AUC, sensitivity, specificity
+- Silhouette score (embedding quality measure)
+- PCA explained variance
+- Embedding power (pretrained - random) if baseline enabled
 
 ### 12. Inference
 
 Run inference on a CSV file to get predictions with probabilities for threshold analysis.
 
+**Single file inference:**
 ```bash
 python -m src.inference \
     --input_csv="/path/to/test.csv" \
@@ -400,11 +441,38 @@ python -m src.inference \
     --save_metrics
 ```
 
+**Batch inference on multiple files:**
+
+1. Create a text file with input CSV paths (one per line):
+```
+# input_files.txt
+/path/to/dataset1.csv
+/path/to/dataset2.csv
+/path/to/dataset3.csv
+```
+
+2. Run the batch submission script:
+```bash
+cd slurm_scripts
+./submit_batch_inference.sh \
+    --input_list /path/to/input_files.txt \
+    --output_dir /path/to/output_directory \
+    --checkpoint /path/to/checkpoint.ckpt \
+    --config /path/to/config.json
+```
+
+This submits a separate SLURM job for each input file.
+
 **Output CSV columns:**
 - `sequence`: Original sequence
 - `label`: Original label (if present)
 - `prob_0`, `prob_1`: Class probabilities
 - `pred_label`: Predicted label
+
+**Metrics JSON** (when `--save_metrics` is used):
+- accuracy, precision, recall, F1, MCC, AUC
+- sensitivity, specificity
+- confusion matrix values (TP, TN, FP, FN)
 
 **Key options:**
 - `--threshold`: Custom classification threshold for sensitivity/specificity tradeoff analysis (default: 0.5)
@@ -423,10 +491,14 @@ python -m src.inference \
 | `configs/experiment/csv_binary.yaml` | Experiment config for CSV classification |
 | `configs/pipeline/csv_binary.yaml` | Pipeline config |
 | `configs/dataset/csv_dataset.yaml` | Dataset config |
-| `slurm_scripts/run_csv_binary.sh` | SLURM job script (Biowulf compatible) |
-| `slurm_scripts/wrapper_run_csv_binary.sh` | Helper script for job submission |
-| `slurm_scripts/run_embedding_analysis.sh` | SLURM script for embedding analysis |
-| `slurm_scripts/run_inference.sh` | SLURM script for inference |
+| `slurm_scripts/run_csv_binary.sh` | SLURM job script for fine-tuning |
+| `slurm_scripts/wrapper_run_csv_binary.sh` | Wrapper for fine-tuning job submission |
+| `slurm_scripts/run_csv_binary_interactive.sh` | Interactive fine-tuning (no sbatch) |
+| `slurm_scripts/run_embedding_analysis.sh` | SLURM job script for embedding analysis |
+| `slurm_scripts/wrapper_run_embedding_analysis.sh` | Wrapper for embedding analysis submission |
+| `slurm_scripts/run_embedding_analysis_interactive.sh` | Interactive embedding analysis |
+| `slurm_scripts/run_inference.sh` | SLURM job script for inference |
+| `slurm_scripts/submit_batch_inference.sh` | Batch submission for multiple inference jobs |
 
 ---
 
