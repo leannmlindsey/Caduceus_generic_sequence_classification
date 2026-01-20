@@ -175,7 +175,7 @@ class SequenceDecoder(nn.Module):
     From src/tasks/decoders.py
     """
 
-    def __init__(self, d_model, d_output, l_output=0, mode="last", conjoin_train=False, conjoin_test=False):
+    def __init__(self, d_model, d_output, l_output=0, mode="pool", conjoin_train=True, conjoin_test=False):
         super().__init__()
         self.output_transform = nn.Linear(d_model, d_output)
 
@@ -198,7 +198,7 @@ class SequenceDecoder(nn.Module):
         l_output = self.l_output
         squeeze = self.squeeze
 
-        # Restrict along sequence dimension (dim=1), not using ellipsis which fails for 4D
+        # Restrict along sequence dimension (dim=1)
         if self.mode == "last":
             x = x[:, -l_output:, ...]
         elif self.mode == "first":
@@ -212,6 +212,7 @@ class SequenceDecoder(nn.Module):
             assert x.size(1) == 1
             x = x.squeeze(1)
 
+        # conjoin_train=True means always chunk and average (even at inference)
         if self.conjoin_train or (self.conjoin_test and not self.training):
             x, x_rc = x.chunk(2, dim=-1)
             x = self.output_transform(x.squeeze(-1))
@@ -240,14 +241,15 @@ class CaduceusForInference(nn.Module):
             conjoin_test=conjoin_test,
         )
 
-        # Decoder
+        # Decoder - matches training config:
+        # mode='pool', conjoin_train=True, conjoin_test=False
         self.decoder = SequenceDecoder(
             d_model=config.d_model,
             d_output=d_output,
             l_output=0,  # means squeeze to single output
-            mode="last",
-            conjoin_train=False,
-            conjoin_test=conjoin_test,
+            mode="pool",
+            conjoin_train=True,
+            conjoin_test=False,
         )
 
     def forward(self, input_ids):
