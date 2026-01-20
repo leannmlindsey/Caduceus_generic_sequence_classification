@@ -206,7 +206,33 @@ Edit `configs/pipeline/csv_binary.yaml`:
   - /callbacks: [base, checkpoint, test_results]  # remove stopping callback
 ```
 
-### 7. Submit the Job
+### 7. Random Initialization Baseline
+
+To measure the contribution of pretraining, you can train with randomly initialized weights (same architecture, no pretrained weights). This provides a baseline to compare against the pretrained model.
+
+**Usage:**
+```bash
+python -m train experiment=csv_binary \
+  train.random_init=true \
+  dataset.data_dir=/path/to/data \
+  +model.config_path=/path/to/model_config.json \
+  ...
+```
+
+When `train.random_init=true`:
+- The model architecture is created from the config
+- Pretrained weights are **not** loaded (even if `pretrained_model_path` is specified)
+- All weights are randomly initialized
+
+**Comparing Results:**
+
+Run two experiments with the same seed and hyperparameters:
+1. Pretrained: `train.random_init=false` (default)
+2. Random: `train.random_init=true`
+
+The difference in metrics shows the "embedding power" gained from pretraining.
+
+### 8. Submit the Job
 
 ```bash
 cd slurm_scripts
@@ -218,7 +244,7 @@ Or submit directly:
 sbatch --export=ALL,DATA_DIR=/path/to/data,CONFIG_PATH=/path/to/config.json,PRETRAINED_PATH=/path/to/ckpt.ckpt,DATASET_NAME=mydata run_csv_binary.sh
 ```
 
-### 8. Output and Test Metrics
+### 9. Output and Test Metrics
 
 **Output Directory Structure:**
 ```
@@ -278,7 +304,7 @@ preds = data['predictions']       # Predicted class labels
 labels = data['labels']           # True labels
 ```
 
-### 9. SLURM Scripts
+### 10. SLURM Scripts
 
 Two SLURM scripts are provided in `slurm_scripts/` for running on HPC clusters (configured for NIH Biowulf):
 
@@ -335,7 +361,7 @@ If your conda environment has a different name, edit this line in `run_csv_binar
 source activate caduceus_env     # Change 'caduceus_env' to your env name
 ```
 
-### 10. Embedding Analysis
+### 11. Embedding Analysis
 
 Extract embeddings from a model and analyze their quality using linear probes, silhouette scores, PCA visualization, and a 3-layer neural network classifier.
 
@@ -359,7 +385,7 @@ python -m src.embedding_analysis \
   - Silhouette score (embedding quality measure)
   - PCA explained variance
 
-### 11. Inference
+### 12. Inference
 
 Run inference on a CSV file to get predictions with probabilities for threshold analysis.
 

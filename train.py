@@ -350,7 +350,9 @@ class SequenceLightningModule(pl.LightningModule):
         metrics = {f"{prefix}/{k}": v for k, v in metrics.items()}
 
         # Calculate torchmetrics
-        torchmetrics = getattr(self, f'{prefix}_torchmetrics')
+        # Handle prefixes like "final/test" by extracting base name (e.g., "test")
+        torchmetrics_prefix = prefix.split('/')[-1] if '/' in prefix else prefix
+        torchmetrics = getattr(self, f'{torchmetrics_prefix}_torchmetrics')
         torchmetrics(x, y, loss=loss)
 
         log_on_step = 'eval' in self.hparams and self.hparams.eval.get('log_on_step', False) and prefix == 'train'
@@ -395,8 +397,10 @@ class SequenceLightningModule(pl.LightningModule):
 
     def on_test_epoch_start(self):
         # Reset all test torchmetrics
+        # Handle prefixes like "final/test" by extracting base name (e.g., "test")
         for name in self.test_loader_names:
-            self.task._reset_torchmetrics(name)
+            base_name = name.split('/')[-1] if '/' in name else name
+            self.task._reset_torchmetrics(base_name)
 
     def test_epoch_end(self, outputs):
         # Log all test torchmetrics
@@ -657,8 +661,13 @@ def train(config):
     trainer = create_trainer(config)
     model = SequenceLightningModule(config)
 
-    # Load pretrained_model if specified
-    if config.train.get("pretrained_model_path", None) is not None:
+    # Load pretrained_model if specified (unless random_init is True)
+    if config.train.get("random_init", False):
+        log.info("=" * 60)
+        log.info("USING RANDOMLY INITIALIZED MODEL (no pretrained weights)")
+        log.info("=" * 60)
+        # Skip loading pretrained weights - model will use random initialization
+    elif config.train.get("pretrained_model_path", None) is not None:
         # PTL style.  Note, method returns a new model object, and need to pass config.
         model = SequenceLightningModule.load_from_checkpoint(
             config.train.pretrained_model_path,
