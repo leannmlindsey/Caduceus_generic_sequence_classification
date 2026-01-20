@@ -210,9 +210,11 @@ def load_caduceus_model(config_path: str, checkpoint_path: str, device: torch.de
     # Remove any Hydra-specific keys from top level
     config_dict = {k: v for k, v in config_dict.items() if not k.startswith('_')}
 
-    # Add complement_map for RCPS models (required by Caduceus)
-    if config_dict.get('rcps', False) and 'complement_map' not in config_dict:
-        print(f"  Adding complement_map for RCPS model")
+    # Always add complement_map (required by Caduceus when rcps=True)
+    # Adding it even when rcps=False doesn't cause issues
+    # Check for None value too, not just missing key
+    if not config_dict.get('complement_map'):
+        print(f"  Adding complement_map for Caduceus model")
         config_dict['complement_map'] = get_complement_map()
 
     print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}, rcps={config_dict.get('rcps')}")
@@ -299,9 +301,10 @@ def create_random_model(config_path: str, checkpoint_path: str, device: torch.de
     # Remove any Hydra-specific keys from top level
     config_dict = {k: v for k, v in config_dict.items() if not k.startswith('_')}
 
-    # Add complement_map for RCPS models (required by Caduceus)
-    if config_dict.get('rcps', False) and 'complement_map' not in config_dict:
-        print(f"  Adding complement_map for RCPS model")
+    # Always add complement_map (required by Caduceus when rcps=True)
+    # Check for None value too, not just missing key
+    if not config_dict.get('complement_map'):
+        print(f"  Adding complement_map for Caduceus model")
         config_dict['complement_map'] = get_complement_map()
 
     print(f"  Config: d_model={config_dict.get('d_model')}, n_layer={config_dict.get('n_layer')}, rcps={config_dict.get('rcps')}")
