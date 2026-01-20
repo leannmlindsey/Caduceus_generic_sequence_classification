@@ -126,17 +126,33 @@ Or submit directly:
 sbatch --export=ALL,DATA_DIR=/path/to/data,CONFIG_PATH=/path/to/config.json,PRETRAINED_PATH=/path/to/ckpt.ckpt,DATASET_NAME=mydata run_csv_binary.sh
 ```
 
-### 6. Output
+### 6. Output and Test Metrics
 
-Results are saved to:
+**Output Directory Structure:**
 ```
 outputs/downstream/csv_binary/{DATASET_NAME}/{MODEL}_lr-{LR}_batch_size-{BS}_rc_aug-{RC}/seed-{SEED}/
-├── test_results.json       # Comprehensive metrics
+├── test_results.json       # Comprehensive metrics computed on full test set
 ├── test_predictions.npz    # Raw predictions for further analysis
 └── checkpoints/            # Model checkpoints
 ```
 
-The `test_results.json` contains:
+**How Test Metrics Are Computed:**
+
+This fork includes a custom test evaluation callback (`src/callbacks/test_results.py`) that addresses a common issue with batch-level metric averaging. Metrics like MCC (Matthews Correlation Coefficient) can be incorrectly calculated when averaged across batches, especially if individual batches have imbalanced class distributions.
+
+Our solution:
+1. **Collects all predictions** from the entire test set during evaluation
+2. **Computes metrics using scikit-learn** on the complete predictions (not batch averages)
+3. **Saves results** to `test_results.json` with full traceability
+
+**Output Files:**
+
+| File | Description |
+|------|-------------|
+| `test_results.json` | All metrics computed on the full test set, plus paths to data and checkpoint |
+| `test_predictions.npz` | NumPy archive containing `logits`, `probabilities`, `predictions`, and `labels` arrays for custom analysis |
+
+**The `test_results.json` contains:**
 ```json
 {
   "eval_loss": 0.258,
@@ -150,11 +166,81 @@ The `test_results.json` contains:
   "eval_auc": 0.983,
   "eval_runtime": 30.15,
   "eval_samples_per_second": 226.4,
+  "eval_steps_per_second": 3.55,
+  "epoch": 100.0,
   "checkpoint_path": "/path/to/checkpoint.ckpt",
   "train_data_path": "/path/to/train.csv",
   "dev_data_path": "/path/to/dev.csv",
   "test_data_path": "/path/to/test.csv"
 }
+```
+
+**Loading predictions for custom analysis:**
+```python
+import numpy as np
+
+data = np.load('test_predictions.npz')
+logits = data['logits']           # Raw model outputs
+probs = data['probabilities']     # Softmax probabilities
+preds = data['predictions']       # Predicted class labels
+labels = data['labels']           # True labels
+```
+
+### 7. SLURM Scripts
+
+Two SLURM scripts are provided in `slurm_scripts/` for running on HPC clusters (configured for NIH Biowulf):
+
+**File Locations:**
+```
+slurm_scripts/
+├── wrapper_run_csv_binary.sh   # <-- EDIT THIS FILE with your paths
+└── run_csv_binary.sh           # Main job script (no edits needed)
+```
+
+**`wrapper_run_csv_binary.sh`** - Configuration wrapper (EDIT THIS)
+- Set your dataset path, model checkpoint, and hyperparameters here
+- Validates paths before submitting
+- Calls `sbatch` to submit the job
+
+**`run_csv_binary.sh`** - Main SLURM job script (no edits needed)
+- Contains SBATCH directives (partition, GPU, memory, time limit)
+- Loads conda environment (`caduceus_env`)
+- Runs the training with parameters from the wrapper
+
+**What to Edit in `wrapper_run_csv_binary.sh`:**
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATA_DIR` | Path to folder with train.csv, dev.csv, test.csv | `/data/user/my_dataset` |
+| `DATASET_NAME` | Name for output folder (no spaces) | `phage_detection` |
+| `CONFIG_PATH` | Path to `model_config.json` from pretraining | `/data/user/pretrain/model_config.json` |
+| `PRETRAINED_PATH` | Path to checkpoint from pretraining | `/data/user/pretrain/checkpoints/last.ckpt` |
+| `MODEL` | Model type | `caduceus`, `mamba`, or `hyena` |
+| `MODEL_NAME` | Model registry name | `dna_embedding_caduceus` |
+| `LR` | Learning rate | `6e-4` |
+| `BATCH_SIZE` | Batch size (reduce if OOM) | `32` |
+| `MAX_LENGTH` | Max sequence length | `1024` |
+| `MAX_EPOCHS` | Training epochs | `100` |
+| `D_OUTPUT` | Number of classes | `2` |
+
+**Modifying SLURM Resources (if needed):**
+
+If you need to change GPU type, memory, or time limit, edit `run_csv_binary.sh`:
+
+```bash
+#SBATCH --partition=gpu          # Partition name
+#SBATCH --gres=gpu:a100:1        # GPU type and count
+#SBATCH --mem=64g                # Memory
+#SBATCH --cpus-per-task=8        # CPU cores
+#SBATCH --time=24:00:00          # Time limit
+```
+
+**Changing the Conda Environment:**
+
+If your conda environment has a different name, edit this line in `run_csv_binary.sh`:
+
+```bash
+source activate caduceus_env     # Change 'caduceus_env' to your env name
 ```
 
 ### Key Files Added in This Fork
