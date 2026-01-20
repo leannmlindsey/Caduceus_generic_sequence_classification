@@ -177,6 +177,31 @@ class CaduceusClassifier(nn.Module):
         return logits
 
 
+def get_complement_map():
+    """
+    Get the complement map for DNA tokenization.
+    Maps token IDs to their reverse complement token IDs.
+    """
+    # Standard DNA tokenizer vocabulary:
+    # 0: [PAD], 1: [UNK], 2: [CLS], 3: [SEP], 4: [MASK], 5: ., 6: <reserved>,
+    # 7: A, 8: C, 9: G, 10: T, 11: N
+    complement_map = {
+        0: 0,   # [PAD] -> [PAD]
+        1: 1,   # [UNK] -> [UNK]
+        2: 2,   # [CLS] -> [CLS]
+        3: 3,   # [SEP] -> [SEP]
+        4: 4,   # [MASK] -> [MASK]
+        5: 5,   # . -> .
+        6: 6,   # <reserved> -> <reserved>
+        7: 10,  # A -> T
+        8: 9,   # C -> G
+        9: 8,   # G -> C
+        10: 7,  # T -> A
+        11: 11, # N -> N
+    }
+    return complement_map
+
+
 def load_model(
     config_path: str,
     checkpoint_path: str,
@@ -188,6 +213,24 @@ def load_model(
     print(f"Loading config from: {config_path}")
     with open(config_path, 'r') as f:
         config_dict = json.load(f)
+
+    # Handle nested Hydra config format
+    # The config file may have a nested 'config' key containing the actual model config
+    if 'config' in config_dict and isinstance(config_dict['config'], dict):
+        print("  Detected nested Hydra config format, extracting inner config...")
+        inner_config = config_dict['config']
+        # Remove Hydra-specific keys that start with '_'
+        inner_config = {k: v for k, v in inner_config.items() if not k.startswith('_')}
+        config_dict = inner_config
+
+    # Handle complement_map being null or missing (required for RCPS)
+    if not config_dict.get('complement_map'):
+        print("  Setting complement_map for DNA tokenization...")
+        config_dict['complement_map'] = get_complement_map()
+
+    print(f"  d_model: {config_dict.get('d_model', 'not specified')}")
+    print(f"  n_layer: {config_dict.get('n_layer', 'not specified')}")
+    print(f"  rcps: {config_dict.get('rcps', 'not specified')}")
 
     config = CaduceusConfig(**config_dict)
     model = CaduceusClassifier(config, d_output=d_output, conjoin_test=conjoin_test)

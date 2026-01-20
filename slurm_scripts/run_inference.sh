@@ -28,8 +28,7 @@ module load conda
 module load cuda/12.8
 
 # Activate conda environment
-# Use conda activate instead of source activate for better compatibility
-conda activate caduceus_env || source activate caduceus_env
+source activate caduceus_env
 
 # Ignore user site-packages
 export PYTHONNOUSERSITE=1
