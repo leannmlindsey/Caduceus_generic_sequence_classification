@@ -131,17 +131,12 @@ class CaduceusClassifier(nn.Module):
         # Backbone
         self.backbone = Caduceus(config)
 
-        # Classification head (mean pooling + linear)
+        # Classification head - simple linear layer to match training decoder
         d_model = config.d_model
         if config.rcps:
             d_model = d_model * 2  # RCPS doubles the hidden dimension
 
-        self.classifier = nn.Sequential(
-            nn.Linear(d_model, d_model // 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(d_model // 2, d_output),
-        )
+        self.classifier = nn.Linear(d_model, d_output)
 
     def forward(self, input_ids, attention_mask=None):
         """
@@ -249,19 +244,28 @@ def load_model(
     for key, value in state_dict.items():
         new_key = key
 
+        # Handle 'model.caduceus.backbone.' prefix from fine-tuned checkpoints
+        if key.startswith('model.caduceus.backbone.'):
+            new_key = 'backbone.backbone.' + key[24:]  # len('model.caduceus.backbone.') = 24
+            new_state_dict[new_key] = value
+            continue
+
         # Handle 'model.' prefix from PyTorch Lightning
         if key.startswith('model.'):
             new_key = key[6:]  # Remove 'model.'
+
+        # Map decoder to classifier
+        if key.startswith('decoder.0.output_transform.'):
+            new_key = 'classifier.' + key[27:]  # len('decoder.0.output_transform.') = 27
+            new_state_dict[new_key] = value
+            continue
 
         # Map caduceus backbone keys
         if new_key.startswith('caduceus.'):
             new_key = 'backbone.' + new_key[9:]
         elif not new_key.startswith('backbone.') and not new_key.startswith('classifier.'):
-            # Check if it's a decoder key
             if 'decoder' in new_key:
-                # Try to map decoder to classifier
-                if 'output_transform' in new_key or 'head' in new_key:
-                    continue  # Skip old decoder head
+                continue  # Skip other decoder keys
             else:
                 new_key = 'backbone.' + new_key
 
