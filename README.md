@@ -114,7 +114,37 @@ export CONJOIN_TRAIN_DECODER="false"    # true for Caduceus-PS, false for others
 export RC_AUG="false"                   # true for Mamba/Hyena, false for Caduceus
 ```
 
-### 5. Submit the Job
+### 5. Weights & Biases (wandb) Logging
+
+Caduceus uses [Weights & Biases](https://wandb.ai/) for experiment tracking and logging.
+
+**Setup:**
+1. Create a free account at [wandb.ai](https://wandb.ai/)
+2. Install wandb: `pip install wandb`
+3. Login: `wandb login` (enter your API key when prompted)
+
+**Configuration:**
+
+By default, wandb logging is **disabled** in the SLURM scripts (`wandb=null`). To enable it:
+
+```bash
+# In your training command, remove or change the wandb=null line:
+python -m train \
+  experiment=csv_binary \
+  ... \
+  wandb.project="my_project" \
+  wandb.name="my_experiment"
+```
+
+**Wandb options:**
+- `wandb=null` - Disable wandb logging (default in SLURM scripts)
+- `wandb.mode=online` - Log to wandb cloud in real-time
+- `wandb.mode=offline` - Log locally, sync later with `wandb sync`
+- `wandb.mode=disabled` - Disable logging
+- `wandb.project="name"` - Set project name
+- `wandb.name="name"` - Set run name
+
+### 6. Submit the Job
 
 ```bash
 cd slurm_scripts
@@ -126,7 +156,7 @@ Or submit directly:
 sbatch --export=ALL,DATA_DIR=/path/to/data,CONFIG_PATH=/path/to/config.json,PRETRAINED_PATH=/path/to/ckpt.ckpt,DATASET_NAME=mydata run_csv_binary.sh
 ```
 
-### 6. Output and Test Metrics
+### 7. Output and Test Metrics
 
 **Output Directory Structure:**
 ```
@@ -186,7 +216,7 @@ preds = data['predictions']       # Predicted class labels
 labels = data['labels']           # True labels
 ```
 
-### 7. SLURM Scripts
+### 8. SLURM Scripts
 
 Two SLURM scripts are provided in `slurm_scripts/` for running on HPC clusters (configured for NIH Biowulf):
 
@@ -243,7 +273,7 @@ If your conda environment has a different name, edit this line in `run_csv_binar
 source activate caduceus_env     # Change 'caduceus_env' to your env name
 ```
 
-### 8. Embedding Analysis
+### 9. Embedding Analysis
 
 Extract embeddings from a model and analyze their quality using linear probes, silhouette scores, PCA visualization, and a 3-layer neural network classifier.
 
@@ -267,7 +297,7 @@ python -m src.embedding_analysis \
   - Silhouette score (embedding quality measure)
   - PCA explained variance
 
-### 9. Inference
+### 10. Inference
 
 Run inference on a CSV file to get predictions with probabilities for threshold analysis.
 
