@@ -2,6 +2,161 @@
     <img src="assets/Caduceus_image.png" alt="Caduceus" width="200"/>
 </p>
 
+# Caduceus Generic Sequence Classification
+
+> **Note:** This is a fork of the [original Caduceus repository](https://github.com/kuleshov-group/caduceus) with added support for **generic CSV-based binary/multiclass classification** tasks. This allows you to fine-tune Caduceus (or Mamba/Hyena) on your own DNA sequence classification datasets.
+
+---
+
+## Fine-tuning on Custom CSV Datasets
+
+This fork adds the ability to fine-tune on any classification task using simple CSV files.
+
+### 1. Prepare Your Data
+
+Create a directory containing three CSV files with `sequence` and `label` columns:
+
+```
+my_dataset/
+├── train.csv
+├── dev.csv
+└── test.csv
+```
+
+Each CSV should have this format:
+```csv
+sequence,label
+ACGTACGTACGT...,0
+TGCATGCATGCA...,1
+GGCCAATTGGCC...,0
+```
+
+- `sequence`: DNA sequence (A, C, G, T, N characters)
+- `label`: Integer class label (0, 1 for binary; 0, 1, 2, ... for multiclass)
+
+### 2. Download a Pretrained Model
+
+Download a pretrained Caduceus model from HuggingFace:
+- [Caduceus-Ph (131k)](https://huggingface.co/kuleshov-group/caduceus-ph_seqlen-131k_d_model-256_n_layer-16)
+- [Caduceus-PS (131k)](https://huggingface.co/kuleshov-group/caduceus-ps_seqlen-131k_d_model-256_n_layer-16)
+
+Or use your own pretrained checkpoint.
+
+### 3. Configure the SLURM Script
+
+Edit `slurm_scripts/wrapper_run_csv_binary.sh`:
+
+```bash
+# === REQUIRED: Dataset Configuration ===
+export DATA_DIR="/path/to/my_dataset"        # Directory with train.csv, dev.csv, test.csv
+export DATASET_NAME="my_dataset"              # Name for output directory
+
+# === REQUIRED: Model Configuration ===
+export CONFIG_PATH="/path/to/model_config.json"
+export PRETRAINED_PATH="/path/to/checkpoint.ckpt"
+
+# === Model Type ===
+export MODEL="caduceus"                       # Options: hyena, mamba, caduceus
+export MODEL_NAME="dna_embedding_caduceus"    # Options: dna_embedding, dna_embedding_mamba, dna_embedding_caduceus
+
+# === Hyperparameters ===
+export LR="6e-4"
+export BATCH_SIZE="32"
+export MAX_LENGTH="1024"                      # Max sequence length (truncates longer sequences)
+export MAX_EPOCHS="100"
+export D_OUTPUT="2"                           # Number of classes
+```
+
+### 4. Understanding Reverse Complement Parameters
+
+Caduceus has special handling for reverse complement (RC) sequences. The parameters depend on which model variant you use:
+
+**Caduceus Variants:**
+- **Caduceus-Ph (Post-hoc)**: Runs both forward and reverse complement sequences through the model at test time, then averages predictions.
+- **Caduceus-PS (Parameter Sharing)**: The model architecture is inherently RC equivariant, handling both directions internally.
+
+**Parameter Definitions:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `CONJOIN_TEST` | If `true`, run both forward + RC sequences at test time and average predictions |
+| `CONJOIN_TRAIN_DECODER` | If `true`, decoder expects input with shape `(..., 2)` and combines both channels |
+| `RC_AUG` | If `true`, randomly apply RC augmentation during training |
+
+**Recommended Settings by Model:**
+
+| Model | `CONJOIN_TEST` | `CONJOIN_TRAIN_DECODER` | `RC_AUG` |
+|-------|----------------|-------------------------|----------|
+| **Caduceus-Ph** | `true` | `false` | `false` |
+| **Caduceus-PS** | `false` | `true` | `false` |
+| **Mamba** | `false` | `false` | `true` |
+| **Hyena** | `false` | `false` | `true` |
+
+The default settings in the SLURM scripts are configured for **Caduceus-Ph**.
+
+### 5. Submit the Job
+
+```bash
+cd slurm_scripts
+bash wrapper_run_csv_binary.sh
+```
+
+Or submit directly:
+```bash
+sbatch --export=ALL,DATA_DIR=/path/to/data,CONFIG_PATH=/path/to/config.json,PRETRAINED_PATH=/path/to/ckpt.ckpt,DATASET_NAME=mydata run_csv_binary.sh
+```
+
+### 6. Output
+
+Results are saved to:
+```
+outputs/downstream/csv_binary/{DATASET_NAME}/{MODEL}_lr-{LR}_batch_size-{BS}_rc_aug-{RC}/seed-{SEED}/
+├── test_results.json       # Comprehensive metrics
+├── test_predictions.npz    # Raw predictions for further analysis
+└── checkpoints/            # Model checkpoints
+```
+
+The `test_results.json` contains:
+```json
+{
+  "eval_loss": 0.258,
+  "eval_accuracy": 0.931,
+  "eval_precision": 0.957,
+  "eval_recall": 0.904,
+  "eval_f1": 0.930,
+  "eval_mcc": 0.864,
+  "eval_sensitivity": 0.904,
+  "eval_specificity": 0.959,
+  "eval_auc": 0.983,
+  "eval_runtime": 30.15,
+  "eval_samples_per_second": 226.4,
+  "checkpoint_path": "/path/to/checkpoint.ckpt",
+  "train_data_path": "/path/to/train.csv",
+  "dev_data_path": "/path/to/dev.csv",
+  "test_data_path": "/path/to/test.csv"
+}
+```
+
+### Key Files Added in This Fork
+
+| File | Description |
+|------|-------------|
+| `src/dataloaders/datasets/csv_dataset.py` | PyTorch Dataset for loading CSV files |
+| `src/dataloaders/genomics.py` | Added `CSVDatasetLoader` class |
+| `src/callbacks/test_results.py` | Callback for computing metrics with scikit-learn |
+| `configs/experiment/csv_binary.yaml` | Experiment config for CSV classification |
+| `configs/pipeline/csv_binary.yaml` | Pipeline config |
+| `configs/dataset/csv_dataset.yaml` | Dataset config |
+| `slurm_scripts/run_csv_binary.sh` | SLURM job script (Biowulf compatible) |
+| `slurm_scripts/wrapper_run_csv_binary.sh` | Helper script for job submission |
+
+---
+
+## Original Caduceus README
+
+The remainder of this README is from the [original Caduceus repository](https://github.com/kuleshov-group/caduceus).
+
+---
 
 # Caduceus &#9764;: Bi-Directional Equivariant Long-Range DNA Sequence Modeling
 [[Blog]](https://caduceus-dna.github.io/) &nbsp; | &nbsp; [[arXiv]](https://arxiv.org/abs/2403.03234) &nbsp; | &nbsp; [[HuggingFace 🤗]](https://huggingface.co/collections/kuleshov-group/caducues-65dcb89b4f54e416ef61c350)
