@@ -692,9 +692,10 @@ def train(config):
             config.train.update({"remove_test_loader_in_eval": False})
             ckpt = torch.load(best_val_ckpt)
             log.info(f"Loaded best validation checkpoint from epoch {ckpt['epoch']}")
-            trainer.validate(model, ckpt_path=best_val_ckpt)
+            # Use trainer.test() for proper test phase (enables test callbacks)
+            trainer.test(model, ckpt_path=best_val_ckpt)
         else:
-            trainer.validate(model)
+            trainer.test(model)
 
 
 @hydra.main(config_path="configs", config_name="config.yaml")

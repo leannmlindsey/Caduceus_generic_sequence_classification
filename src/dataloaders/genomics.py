@@ -16,6 +16,7 @@ from torch.utils.data.dataloader import DataLoader
 from caduceus.tokenization_caduceus import CaduceusTokenizer
 import src.utils.train
 from src.dataloaders.base import SequenceDataset, default_data_path
+from src.dataloaders.datasets.csv_dataset import CSVDataset
 from src.dataloaders.datasets.genomic_bench_dataset import GenomicBenchmarkDataset
 from src.dataloaders.datasets.hg38_char_tokenizer import CharacterTokenizer
 from src.dataloaders.datasets.hg38_dataset import HG38Dataset
@@ -395,3 +396,116 @@ class NucleotideTransformer(HG38):
 
         self.dataset_val.split = "val"
         self.dataset_val.seqs = ds_train_val_split["test"]
+
+
+class CSVDatasetLoader(HG38):
+    """Dataloader for generic CSV-based classification tasks.
+
+    Expects a data_dir with train.csv, dev.csv, and test.csv files.
+    Each CSV should have "sequence" and "label" columns.
+    """
+    _name_ = "csv_dataset"
+    l_output = 0  # scalar output for classification
+
+    def __init__(
+            self, data_dir, train_val_split_seed=None,
+            tokenizer_name="char", d_output=2, rc_aug=False,
+            conjoin_train=False, conjoin_test=False,
+            max_length=1024, use_padding=True, max_length_val=None, max_length_test=None,
+            padding_side="left", add_eos=False,
+            detokenize=False, val_only=False, batch_size=32, batch_size_eval=None, num_workers=1,
+            shuffle=True, pin_memory=False, drop_last=False, fault_tolerant=False, ddp=False,
+            fast_forward_epochs=None, fast_forward_batches=None, *args, **kwargs
+    ):
+        self.data_dir = data_dir
+        self.train_val_split_seed = train_val_split_seed
+        self.tokenizer_name = tokenizer_name
+        self.d_output = d_output
+        self.rc_aug = rc_aug
+        self.conjoin_train = conjoin_train
+        self.conjoin_test = conjoin_test
+        self.max_length = max_length
+        self.use_padding = use_padding
+        self.max_length_val = max_length_val if max_length_val is not None else max_length
+        self.max_length_test = max_length_test if max_length_test is not None else max_length
+        self.padding_side = padding_side
+        self.add_eos = add_eos
+        self.detokenize = detokenize
+        self.val_only = val_only
+        self.batch_size = batch_size
+        self.batch_size_eval = batch_size_eval if batch_size_eval is not None else self.batch_size
+        self.num_workers = num_workers
+        self.shuffle = shuffle
+        self.pin_memory = pin_memory
+        self.drop_last = drop_last
+
+        if fault_tolerant:
+            assert self.shuffle
+        self.fault_tolerant = fault_tolerant
+        if ddp:
+            assert fault_tolerant
+        self.ddp = ddp
+        self.fast_forward_epochs = fast_forward_epochs
+        self.fast_forward_batches = fast_forward_batches
+        if self.fast_forward_epochs is not None or self.fast_forward_batches is not None:
+            assert ddp and fault_tolerant
+
+    def setup(self, stage=None):
+        from pathlib import Path
+
+        if self.tokenizer_name == "char":
+            print("**Using Char-level tokenizer**")
+            self.tokenizer = CharacterTokenizer(
+                characters=["A", "C", "G", "T", "N"],
+                model_max_length=self.max_length + 2,  # add 2 since default adds eos/eos tokens, crop later
+                add_special_tokens=False,
+                padding_side=self.padding_side,
+            )
+
+        data_path = Path(self.data_dir)
+
+        # Create datasets from CSV files
+        self.dataset_train = CSVDataset(
+            csv_path=data_path / "train.csv",
+            max_length=self.max_length,
+            tokenizer=self.tokenizer,
+            tokenizer_name=self.tokenizer_name,
+            use_padding=self.use_padding,
+            d_output=self.d_output,
+            add_eos=self.add_eos,
+            rc_aug=self.rc_aug,
+            conjoin_train=self.conjoin_train,
+            conjoin_test=self.conjoin_test,
+            return_augs=False,
+            split="train",
+        )
+
+        self.dataset_val = CSVDataset(
+            csv_path=data_path / "dev.csv",
+            max_length=self.max_length_val,
+            tokenizer=self.tokenizer,
+            tokenizer_name=self.tokenizer_name,
+            use_padding=self.use_padding,
+            d_output=self.d_output,
+            add_eos=self.add_eos,
+            rc_aug=False,  # No augmentation for validation
+            conjoin_train=False,
+            conjoin_test=self.conjoin_test,
+            return_augs=False,
+            split="val",
+        )
+
+        self.dataset_test = CSVDataset(
+            csv_path=data_path / "test.csv",
+            max_length=self.max_length_test,
+            tokenizer=self.tokenizer,
+            tokenizer_name=self.tokenizer_name,
+            use_padding=self.use_padding,
+            d_output=self.d_output,
+            add_eos=self.add_eos,
+            rc_aug=False,  # No augmentation for test
+            conjoin_train=False,
+            conjoin_test=self.conjoin_test,
+            return_augs=False,
+            split="test",
+        )

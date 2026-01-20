@@ -56,6 +56,7 @@ callbacks = {
     "params": "src.callbacks.params.ParamsLog",
     "timer": "src.callbacks.timer.Timer",
     "val_every_n_global_steps": "src.callbacks.validation.ValEveryNGlobalSteps",
+    "test_results": "src.callbacks.test_results.TestResultsCallback",
 }
 
 model_state_hook = {
