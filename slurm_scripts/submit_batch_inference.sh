@@ -137,6 +137,8 @@ mkdir -p "${OUTPUT_DIR}"
 # Get the directory of this script (for finding run_inference.sh)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 INFERENCE_SCRIPT="${SCRIPT_DIR}/run_inference.sh"
+# Compute repo root (one level up from slurm_scripts)
+REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
 
 if [ ! -f "${INFERENCE_SCRIPT}" ]; then
     echo "ERROR: Inference script not found: ${INFERENCE_SCRIPT}"
@@ -195,7 +197,7 @@ while IFS= read -r INPUT_CSV || [ -n "${INPUT_CSV}" ]; do
         --job-name="inf_${INPUT_BASENAME}" \
         --output="${OUTPUT_DIR}/slurm_${INPUT_BASENAME}_%j.out" \
         --error="${OUTPUT_DIR}/slurm_${INPUT_BASENAME}_%j.err" \
-        --export=ALL,INPUT_CSV="${INPUT_CSV}",OUTPUT_CSV="${OUTPUT_CSV}",CHECKPOINT_PATH="${CHECKPOINT_PATH}",CONFIG_PATH="${CONFIG_PATH}",BATCH_SIZE="${BATCH_SIZE}",MAX_LENGTH="${MAX_LENGTH}",D_OUTPUT="${D_OUTPUT}",THRESHOLD="${THRESHOLD}",CONJOIN_TEST="${CONJOIN_TEST}" \
+        --export=ALL,INPUT_CSV="${INPUT_CSV}",OUTPUT_CSV="${OUTPUT_CSV}",CHECKPOINT_PATH="${CHECKPOINT_PATH}",CONFIG_PATH="${CONFIG_PATH}",BATCH_SIZE="${BATCH_SIZE}",MAX_LENGTH="${MAX_LENGTH}",D_OUTPUT="${D_OUTPUT}",THRESHOLD="${THRESHOLD}",CONJOIN_TEST="${CONJOIN_TEST}",REPO_ROOT="${REPO_ROOT}" \
         "${INFERENCE_SCRIPT}" | awk '{print $NF}')
 
     echo "  Job ID: ${JOB_ID}"

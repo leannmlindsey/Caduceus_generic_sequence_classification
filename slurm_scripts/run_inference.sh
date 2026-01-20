@@ -28,7 +28,8 @@ module load conda
 module load cuda/12.8
 
 # Activate conda environment
-source activate caduceus_env
+# Use conda activate instead of source activate for better compatibility
+conda activate caduceus_env || source activate caduceus_env
 
 # Ignore user site-packages
 export PYTHONNOUSERSITE=1
@@ -63,8 +64,13 @@ if [ -z "${CONFIG_PATH}" ]; then
 fi
 
 # Navigate to repo root
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "${SCRIPT_DIR}/.." || exit
+# Use REPO_ROOT if provided (when called via sbatch), otherwise compute from BASH_SOURCE
+if [ -n "${REPO_ROOT}" ]; then
+    cd "${REPO_ROOT}" || exit
+else
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    cd "${SCRIPT_DIR}/.." || exit
+fi
 echo "Working directory: $(pwd)"
 
 export PYTHONPATH="${PWD}:${PYTHONPATH}"

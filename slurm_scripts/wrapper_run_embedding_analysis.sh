@@ -125,8 +125,9 @@ echo ""
 echo "Include random baseline: ${INCLUDE_RANDOM_BASELINE}"
 echo "=========================================="
 
-# Get script directory
+# Get script directory and repo root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
 
 # Submit job
 echo "Submitting job..."
