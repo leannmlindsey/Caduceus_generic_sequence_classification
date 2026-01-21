@@ -20,46 +20,38 @@ def main():
     with open(json_path) as f:
         data = json.load(f)
 
-    print("Top-level keys:", list(data.keys()))
-    print()
-
-    # Look at features
+    # Find CDS with COG
     features = data.get('features', [])
-    print(f"Total features: {len(features)}")
 
-    # Find CDS features
-    cds_features = [f for f in features if f.get('type') == 'cds']
-    print(f"CDS features: {len(cds_features)}")
-    print()
+    cog_count = 0
+    cds_with_cog = None
 
-    # Show first CDS structure
-    if cds_features:
-        print("First CDS feature keys:", list(cds_features[0].keys()))
-        print()
-        print("First CDS feature (full):")
-        print(json.dumps(cds_features[0], indent=2))
-        print()
+    for feat in features:
+        if feat.get('type') == 'cds' and feat.get('cog_category'):
+            cog_count += 1
+            if cds_with_cog is None:
+                cds_with_cog = feat
 
-    # Search for cog_category anywhere
-    print("\n" + "="*60)
-    print("Searching for 'cog_category' in JSON...")
-    print("="*60)
+    print(f"Total CDS: {len([f for f in features if f.get('type') == 'cds'])}")
+    print(f"CDS with cog_category: {cog_count}")
 
-    def find_cog(obj, path=""):
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                if k == 'cog_category':
-                    print(f"Found at path: {path}.{k} = {v}")
-                    return True
-                if find_cog(v, f"{path}.{k}"):
-                    return True
-        elif isinstance(obj, list):
-            for i, item in enumerate(obj[:5]):  # Only check first 5
-                if find_cog(item, f"{path}[{i}]"):
-                    return True
-        return False
+    if cds_with_cog:
+        print("\nExample CDS WITH cog_category:")
+        print(f"  locus: {cds_with_cog.get('locus')}")
+        print(f"  product: {cds_with_cog.get('product')}")
+        print(f"  cog_id: {cds_with_cog.get('cog_id')}")
+        print(f"  cog_category: {cds_with_cog.get('cog_category')}")
+        print(f"  keys: {list(cds_with_cog.keys())}")
+    else:
+        print("\nNo CDS with cog_category found directly on feature.")
+        print("Searching entire JSON for cog_category...")
 
-    find_cog(data)
+        # Search raw JSON
+        raw = json.dumps(data)
+        if 'cog_category' in raw:
+            print("  cog_category EXISTS in JSON but not on CDS features directly")
+        else:
+            print("  cog_category NOT FOUND in JSON")
 
 
 if __name__ == "__main__":
