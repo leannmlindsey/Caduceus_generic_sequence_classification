@@ -497,8 +497,8 @@ def main():
     else:
         preds_thresholded = preds
 
-    # Create output dataframe
-    output_df = df.copy()
+    # Create output dataframe (exclude sequence column to save space)
+    output_df = df.drop(columns=['sequence']).copy()
     output_df["prob_0"] = probs[:, 0]
     output_df["prob_1"] = probs[:, 1]
     output_df["pred_label"] = preds_thresholded
