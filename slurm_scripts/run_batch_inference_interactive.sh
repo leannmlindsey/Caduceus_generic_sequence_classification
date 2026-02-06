@@ -128,58 +128,19 @@ echo "  Conjoin test: ${CONJOIN_TEST}"
 echo "============================================================"
 echo ""
 
-# Count input files
-NUM_FILES=$(grep -c -v '^[[:space:]]*$' "${INPUT_LIST}" || echo 0)
-echo "Found ${NUM_FILES} input files to process"
+# Run batch inference with single model load
+python -m src.batch_inference \
+    --input_list="${INPUT_LIST}" \
+    --output_dir="${OUTPUT_DIR}" \
+    --checkpoint_path="${CHECKPOINT_PATH}" \
+    --config_path="${CONFIG_PATH}" \
+    --batch_size=${BATCH_SIZE} \
+    --max_length=${MAX_LENGTH} \
+    --d_output=${D_OUTPUT} \
+    --threshold=${THRESHOLD} \
+    ${CONJOIN_FLAG} \
+    --save_metrics
+
 echo ""
-
-# Process each input file sequentially
-COUNT=0
-while IFS= read -r INPUT_CSV || [ -n "${INPUT_CSV}" ]; do
-    # Skip empty lines and comments
-    if [[ -z "${INPUT_CSV}" ]] || [[ "${INPUT_CSV}" =~ ^[[:space:]]*# ]]; then
-        continue
-    fi
-
-    # Trim whitespace
-    INPUT_CSV=$(echo "${INPUT_CSV}" | xargs)
-
-    # Validate input file exists
-    if [ ! -f "${INPUT_CSV}" ]; then
-        echo "WARNING: Input file not found, skipping: ${INPUT_CSV}"
-        continue
-    fi
-
-    COUNT=$((COUNT + 1))
-    INPUT_BASENAME=$(basename "${INPUT_CSV}" .csv)
-    OUTPUT_CSV="${OUTPUT_DIR}/${INPUT_BASENAME}_predictions.csv"
-
-    echo "============================================================"
-    echo "Processing file ${COUNT}/${NUM_FILES}: ${INPUT_BASENAME}"
-    echo "  Input:  ${INPUT_CSV}"
-    echo "  Output: ${OUTPUT_CSV}"
-    echo "============================================================"
-
-    python -m src.inference \
-        --input_csv="${INPUT_CSV}" \
-        --checkpoint_path="${CHECKPOINT_PATH}" \
-        --config_path="${CONFIG_PATH}" \
-        --output_csv="${OUTPUT_CSV}" \
-        --batch_size=${BATCH_SIZE} \
-        --max_length=${MAX_LENGTH} \
-        --d_output=${D_OUTPUT} \
-        --threshold=${THRESHOLD} \
-        ${CONJOIN_FLAG} \
-        --save_metrics
-
-    echo ""
-
-done < "${INPUT_LIST}"
-
-echo "============================================================"
-echo "Batch Inference Complete"
-echo "============================================================"
-echo "Processed ${COUNT} files"
-echo "Results saved to: ${OUTPUT_DIR}"
 echo "Job completed at: $(date)"
 echo "============================================================"
