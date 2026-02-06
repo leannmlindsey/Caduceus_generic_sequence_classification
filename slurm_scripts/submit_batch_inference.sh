@@ -18,10 +18,10 @@ set -e
 
 # Default values
 BATCH_SIZE=32
-MAX_LENGTH=1024
+MAX_LENGTH=2048
 D_OUTPUT=2
 THRESHOLD=0.5
-CONJOIN_TEST=true
+CONJOIN_TEST=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do

@@ -15,15 +15,15 @@
 
 # === REQUIRED: Dataset Configuration ===
 # Path to directory containing train.csv, dev.csv, test.csv
-export DATA_DIR="/path/to/your/csv/data"
+export DATA_DIR="/home/lindseylm/lindseylm/lambda_final/merged_datasets_filtered/8k"
 # Name for this dataset (used in output directory structure)
-export DATASET_NAME="my_dataset"
+export DATASET_NAME="LAMBDA_Final_8k"
 
 # === REQUIRED: Model Configuration ===
 # Path to model config JSON
-export CONFIG_PATH="/path/to/model_config.json"
+export CONFIG_PATH="/data/lindseylm/PROPHAGE_IDENTIFICATION_LLM/MODELS/caduceus/outputs/pretrain/hg38/caduceus-ps_seqlen-8k_d_model-256_n_layer-4_lr-8e-3/model_config.json"
 # Path to pretrained model checkpoint
-export PRETRAINED_PATH="/path/to/checkpoint.ckpt"
+export PRETRAINED_PATH="/data/lindseylm/PROPHAGE_IDENTIFICATION_LLM/MODELS/caduceus/outputs/pretrain/hg38/caduceus-ps_seqlen-8k_d_model-256_n_layer-4_lr-8e-3/checkpoints/last.ckpt"
 
 # === Model Type ===
 # Options: hyena, mamba, caduceus
@@ -33,21 +33,21 @@ export MODEL_NAME="dna_embedding_caduceus"
 
 # === Post-hoc RC (for Caduceus) ===
 # Set to "true" for Caduceus post-hoc, "false" for others
-export CONJOIN_TEST="true"
-export CONJOIN_TRAIN_DECODER="false"
+export CONJOIN_TEST="false"
+export CONJOIN_TRAIN_DECODER="true"
 
 # === OPTIONAL: Hyperparameters ===
-export LR="6e-4"
+export LR="1e-4"
 export BATCH_SIZE="32"
-export MAX_LENGTH="1024"
-export MAX_EPOCHS="100"
+export MAX_LENGTH="2048"
+export MAX_EPOCHS="10"
 export D_OUTPUT="2"
 export RC_AUG="false"
 
 # === Replicates ===
 # Set NUM_REPLICATES=1 for a single run, or higher for multiple seeds
 # Seeds will be 1, 2, 3, ... NUM_REPLICATES
-NUM_REPLICATES=1
+NUM_REPLICATES=10
 
 #####################################################################
 # END CONFIGURATION
@@ -104,7 +104,7 @@ echo "=========================================="
 # Submit job(s)
 if [ "${NUM_REPLICATES}" -eq 1 ]; then
     # Single run with default seed
-    export SEED=2222
+    export SEED=42
     echo "Submitting single job with seed ${SEED}..."
     sbatch --export=ALL run_csv_binary.sh
 else
