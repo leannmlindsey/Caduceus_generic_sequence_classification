@@ -23,10 +23,14 @@
 echo "=== embedding ${VARIANT} len=${LEN:-?} ==="
 echo "Started at: $(date)  Node: $(hostname)  Job: ${SLURM_JOB_ID:-N/A}"
 
-module load conda
-module load cuda/12.8
-source activate "${CONDA_ENV:-caduceus_env}"
-echo "  conda env: ${CONDA_DEFAULT_ENV:-<none>}   python: $(command -v python || echo none)"
+module load CUDA/12.8
+source /data/lindseylm/conda/etc/profile.d/conda.sh
+conda activate "${CONDA_ENV:-caduceus_env}"
+if [ "${CONDA_DEFAULT_ENV}" != "${CONDA_ENV:-caduceus_env}" ]; then
+    echo "ERROR: could not activate conda env '${CONDA_ENV:-caduceus_env}' (active: '${CONDA_DEFAULT_ENV:-none}'). Aborting." >&2
+    exit 1
+fi
+echo "  conda env: ${CONDA_DEFAULT_ENV}   python: $(command -v python)"
 export PYTHONNOUSERSITE=1
 
 if [ -z "${REPO_ROOT:-}" ]; then
