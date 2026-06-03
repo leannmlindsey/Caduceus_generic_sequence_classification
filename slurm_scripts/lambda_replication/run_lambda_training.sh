@@ -1,0 +1,132 @@
+#!/bin/bash
+#
+# Caduceus LAMBDA_v1 replication — STAGE 1: fire off all training jobs.
+#
+# For each segment length in SEGMENT_LENGTHS, submits one finetune sbatch job
+# per (variant, seed). All jobs run in parallel (no --dependency chaining).
+# Once they all complete, run run_lambda_inference.sh to pick the best seed and
+# run inference + embedding analysis.
+#
+# Caduceus uses a single-nucleotide (char) tokenizer (1 token = 1 bp). The
+# pretrained checkpoint is seqlen-8k, so 2k/4k/8k are all runnable.
+#
+# Usage:
+#   1. Edit lambda_replication.conf — confirm LAMBDA_BASE, OUTPUT_DIR,
+#      CONFIG_PATH, PRETRAINED_PATH.
+#   2. bash slurm_scripts/lambda_replication/run_lambda_training.sh
+#   3. Wait for jobs: squeue -u $USER ; bash .../check_training.sh
+#   4. bash slurm_scripts/lambda_replication/run_lambda_inference.sh
+
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# REPO_ROOT is the repo root (holds train.py, src/, configs/).
+# slurm_scripts/lambda_replication -> ../.. == root.
+REPO_ROOT="$( cd "${SCRIPT_DIR}/../.." && pwd )"
+CONFIG="${SCRIPT_DIR}/lambda_replication.conf"
+
+if [ ! -f "${CONFIG}" ]; then
+    echo "ERROR: missing ${CONFIG}"; exit 1
+fi
+# shellcheck disable=SC1090
+source "${CONFIG}"
+
+# --- validate -----------------------------------------------------------------
+
+if [[ "${LAMBDA_BASE}" == /path/to/* ]] || [[ "${OUTPUT_DIR}" == /path/to/* ]]; then
+    echo "ERROR: edit ${CONFIG} — LAMBDA_BASE or OUTPUT_DIR still set to placeholder"
+    exit 1
+fi
+[ -d "${LAMBDA_BASE}/train_val_test" ] || {
+    echo "ERROR: ${LAMBDA_BASE}/train_val_test not found (expected LAMBDA_v1 layout)"
+    exit 1
+}
+if [ -z "${SEGMENT_LENGTHS}" ]; then
+    echo "ERROR: SEGMENT_LENGTHS is empty"; exit 1
+fi
+if [ -z "${CONFIG_PATH}" ] || [ -z "${PRETRAINED_PATH}" ]; then
+    echo "ERROR: CONFIG_PATH and PRETRAINED_PATH must be set in ${CONFIG}"; exit 1
+fi
+
+# Validate per-length input dirs exist before submitting anything.
+RUN_LENGTHS=""
+for LEN in ${SEGMENT_LENGTHS}; do
+    LDIR="${LAMBDA_BASE}/train_val_test/${LEN}"
+    if [ ! -d "${LDIR}" ]; then
+        echo "WARNING: ${LDIR} not found — skipping ${LEN}"; continue
+    fi
+    [ -f "${LDIR}/train.csv" ] || { echo "ERROR: ${LDIR}/train.csv not found"; exit 1; }
+    [ -f "${LDIR}/test.csv" ]  || { echo "ERROR: ${LDIR}/test.csv not found"; exit 1; }
+    if [ ! -f "${LDIR}/dev.csv" ] && [ ! -f "${LDIR}/val.csv" ]; then
+        echo "ERROR: ${LDIR} must contain dev.csv or val.csv"; exit 1
+    fi
+    RUN_LENGTHS="${RUN_LENGTHS} ${LEN}"
+done
+RUN_LENGTHS="$(echo "${RUN_LENGTHS}" | xargs)"
+if [ -z "${RUN_LENGTHS}" ]; then
+    echo "ERROR: no runnable lengths after validation"; exit 1
+fi
+
+mkdir -p "${OUTPUT_DIR}/logs"
+LOGDIR="${OUTPUT_DIR}/logs"
+
+# --- summary ------------------------------------------------------------------
+
+echo "============================================================"
+echo "Caduceus LAMBDA replication — Stage 1: training"
+echo "============================================================"
+echo "  LAMBDA_BASE:     ${LAMBDA_BASE}"
+echo "  OUTPUT_DIR:      ${OUTPUT_DIR}"
+echo "  REPO_ROOT:       ${REPO_ROOT}"
+echo "  SEGMENT_LENGTHS: ${RUN_LENGTHS}"
+echo "  VARIANTS:        ${VARIANTS}"
+echo "  CONFIG_PATH:     ${CONFIG_PATH}"
+echo "  PRETRAINED_PATH: ${PRETRAINED_PATH}"
+echo "  SEEDS:           ${SEEDS}"
+echo "  FT params:       lr=${LR} epochs=${MAX_EPOCHS} conjoin_test=${CONJOIN_TEST}"
+echo "============================================================"
+
+# --- common sbatch flags ------------------------------------------------------
+
+FT_FLAGS=(--partition=gpu --gres=gpu:a100:1 --mem="${FT_MEM}" --time="${FT_TIME}" --cpus-per-task=8)
+
+# REPO_ROOT is propagated to every job so they can cd to the real repo — SLURM
+# stages each job script to /var/spool/slurm/... where BASH_SOURCE[0] can't
+# recover the original location.
+FT_ENV_BASE="REPO_ROOT=${REPO_ROOT},CONDA_ENV=${CONDA_ENV},CONFIG_PATH=${CONFIG_PATH},PRETRAINED_PATH=${PRETRAINED_PATH},MODEL=${MODEL},MODEL_NAME=${MODEL_NAME},LR=${LR},MAX_EPOCHS=${MAX_EPOCHS},D_OUTPUT=${D_OUTPUT},RC_AUG=${RC_AUG},CONJOIN_TEST=${CONJOIN_TEST},CONJOIN_TRAIN_DECODER=${CONJOIN_TRAIN_DECODER}"
+
+NUM_JOBS=0
+
+for LEN in ${RUN_LENGTHS}; do
+    LAMBDA_DIR="${LAMBDA_BASE}/train_val_test/${LEN}"
+    REPL_LEN_DIR="${OUTPUT_DIR}/${LEN}"
+    mkdir -p "${REPL_LEN_DIR}"
+
+    # Resolve per-window max token length + batch size.
+    ml_var="MAX_LENGTH_${LEN}";  MAX_LENGTH="${!ml_var:-2048}"
+    bs_var="BATCH_SIZE_${LEN}";  BATCH_SIZE="${!bs_var:-32}"
+
+    echo ""
+    echo "--- length: ${LEN} (max_length=${MAX_LENGTH}, batch=${BATCH_SIZE}) ---"
+    echo "    lambda dir:   ${LAMBDA_DIR}"
+    echo "    output dir:   ${REPL_LEN_DIR}"
+
+    for VARIANT in ${VARIANTS}; do
+        for SEED in ${SEEDS}; do
+            JOB="ft_${LEN}_${VARIANT}_s${SEED}"
+            echo "    submitting ${JOB}..."
+            sbatch \
+                --job-name="${JOB}" \
+                --output="${LOGDIR}/${JOB}_%j.out" \
+                --error="${LOGDIR}/${JOB}_%j.err" \
+                "${FT_FLAGS[@]}" \
+                --export="ALL,REPL_OUTPUT_DIR=${REPL_LEN_DIR},LAMBDA_DIR=${LAMBDA_DIR},${FT_ENV_BASE},VARIANT=${VARIANT},SEED=${SEED},LEN=${LEN},MAX_LENGTH=${MAX_LENGTH},BATCH_SIZE=${BATCH_SIZE}" \
+                "${SCRIPT_DIR}/lambda_finetune_job.sh"
+            NUM_JOBS=$((NUM_JOBS + 1))
+        done
+    done
+done
+
+echo ""
+echo "Submitted ${NUM_JOBS} jobs. Monitor with: squeue -u \$USER"
+echo "When all jobs are done, run:"
+echo "  bash ${SCRIPT_DIR}/run_lambda_inference.sh"

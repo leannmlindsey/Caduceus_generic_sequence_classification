@@ -50,6 +50,43 @@ def main():
         raw = json.dumps(data)
         if 'cog_category' in raw:
             print("  cog_category EXISTS in JSON but not on CDS features directly")
+
+            # Look at nested structures in first CDS
+            first_cds = None
+            for feat in features:
+                if feat.get('type') == 'cds':
+                    first_cds = feat
+                    break
+
+            if first_cds:
+                print("\n  Inspecting nested structures in first CDS:")
+                for key in first_cds.keys():
+                    val = first_cds[key]
+                    if isinstance(val, dict):
+                        print(f"    {key} (dict): {list(val.keys())[:10]}")
+                        # Check if cog_category is in this dict
+                        if 'cog_category' in val:
+                            print(f"      ** FOUND cog_category in {key}!")
+                    elif isinstance(val, list) and len(val) > 0:
+                        print(f"    {key} (list of {len(val)}): ", end="")
+                        if isinstance(val[0], dict):
+                            print(f"dicts with keys: {list(val[0].keys())[:10]}")
+                            # Check if cog_category is in list items
+                            for item in val[:3]:
+                                if isinstance(item, dict) and 'cog_category' in item:
+                                    print(f"      ** FOUND cog_category in {key} item!")
+                                    print(f"         Example: {item}")
+                                    break
+                        else:
+                            print(f"{type(val[0]).__name__}")
+
+            # Also check top-level keys in JSON
+            print("\n  Top-level JSON keys:", list(data.keys()))
+            for key in data.keys():
+                if key != 'features':
+                    val = data[key]
+                    if isinstance(val, dict) and 'cog_category' in json.dumps(val):
+                        print(f"    ** cog_category found somewhere in '{key}'")
         else:
             print("  cog_category NOT FOUND in JSON")
 
