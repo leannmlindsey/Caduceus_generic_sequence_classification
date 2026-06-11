@@ -24,11 +24,15 @@ echo "Running on node: $(hostname)"
 echo "Job ID: $SLURM_JOB_ID"
 
 # Load modules
-module load conda
 module load cuda/12.8
 
-# Activate conda environment
-source activate caduceus_env
+# Activate conda from the install that OWNS caduceus_env (/data/lindseylm/conda),
+# then activate the env. This is the pattern the lambda_replication job bodies
+# use, and it works regardless of which account submits (a bare `module load
+# conda` + `source activate caduceus_env` only resolves under the env owner's
+# account). CONDA_ENV overrides the env (name or full path); defaults to caduceus_env.
+source /data/lindseylm/conda/etc/profile.d/conda.sh
+conda activate "${CONDA_ENV:-caduceus_env}"
 
 # Ignore user site-packages
 export PYTHONNOUSERSITE=1
