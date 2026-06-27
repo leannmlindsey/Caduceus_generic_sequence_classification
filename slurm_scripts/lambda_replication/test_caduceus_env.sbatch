@@ -26,7 +26,8 @@ TEST_PY="${TEST_PY:-/work/hdd/bfzj/llindsey1/LAMBDA_REPLICATION/test_caduceus_en
 CKPT_DIR="${CKPT_DIR:-/work/hdd/bfzj/llindsey1/LAMBDA_REPLICATION/Caduceus_generic_sequence_classification/checkpoints/caduceus-ps_seqlen-8k_d_model-256_n_layer-4_lr-8e-3}"
 
 echo "node: $(hostname)   env: ${TEST_ENV}"
-source /u/llindsey1/miniconda3/etc/profile.d/conda.sh
-conda activate "${TEST_ENV}"
-echo "CONDA_PREFIX: ${CONDA_PREFIX}"
-python "${TEST_PY}" --ckpt-dir "${CKPT_DIR}"
+# Delta: `conda activate` does not work in a non-interactive SLURM job — use the
+# env's python by full path instead (no activation needed to RUN an env).
+export PATH="${TEST_ENV}/bin:${PATH}"
+export CUDA_HOME="${TEST_ENV}"
+"${TEST_ENV}/bin/python" "${TEST_PY}" --ckpt-dir "${CKPT_DIR}"
