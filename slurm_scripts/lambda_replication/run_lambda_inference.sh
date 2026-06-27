@@ -67,8 +67,8 @@ LOGDIR="${OUTPUT_DIR}/logs"
 
 # --- common sbatch flags ------------------------------------------------------
 
-INF_FLAGS=(--partition=gpu --gres=gpu:a100:1 --mem="${INF_MEM}" --time="${INF_TIME}" --cpus-per-task=8)
-EMB_FLAGS=(--partition=gpu --gres=gpu:a100:1 --mem="${EMB_MEM}" --time="${EMB_TIME}" --cpus-per-task=8)
+INF_FLAGS=(--account=bfzj-dtai-gh --partition=ghx4 --gpus-per-node=1 --mem="${INF_MEM}" --time="${INF_TIME}" --cpus-per-task=8)
+EMB_FLAGS=(--account=bfzj-dtai-gh --partition=ghx4 --gpus-per-node=1 --mem="${EMB_MEM}" --time="${EMB_TIME}" --cpus-per-task=8)
 
 EMB_ENV_BASE="REPO_ROOT=${REPO_ROOT},CONDA_ENV=${CONDA_ENV},CONFIG_PATH=${CONFIG_PATH},PRETRAINED_PATH=${PRETRAINED_PATH},POOLING=${POOLING},EMB_SEED=${EMB_SEED},NN_EPOCHS=${NN_EPOCHS},NN_HIDDEN_DIM=${NN_HIDDEN_DIM},NN_LR=${NN_LR},EMB_BATCH_SIZE=${EMB_BATCH_SIZE},INCLUDE_RANDOM_BASELINE=${INCLUDE_RANDOM_BASELINE:-false}"
 
@@ -122,6 +122,19 @@ for LEN in ${RUN_LENGTHS}; do
             DIAG_PATHS+=("${FNR_PATH}")
         else
             echo "  WARNING: ${fnr_var}=${FNR_PATH} not found — skipping fnr for ${LEN}"
+        fi
+    fi
+
+    # Optional PHROG (phage-annotated) — indirect lookup on PHROG_<LEN> (2k only).
+    # The annotated CDS subset, DISTINCT from FNR; feeds the paper's PHROG table.
+    phrog_var="PHROG_${LEN}"
+    PHROG_PATH="${!phrog_var:-}"
+    if [ -n "${PHROG_PATH}" ]; then
+        if [ -f "${PHROG_PATH}" ]; then
+            DIAG_NAMES+=(phrog)
+            DIAG_PATHS+=("${PHROG_PATH}")
+        else
+            echo "  WARNING: ${phrog_var}=${PHROG_PATH} not found — skipping phrog for ${LEN}"
         fi
     fi
 
@@ -188,13 +201,21 @@ for LEN in ${RUN_LENGTHS}; do
             NAME="${RUN_NAMES[$i]}"
             CSV="${RUN_PATHS[$i]}"
             JOB="inf_${LEN}_${VARIANT}_${NAME}"
-            echo "    submitting ${JOB}..."
+            # PHROG uses the canonical model-prefixed name the central PHROG table
+            # reads: ${PHROG_MODEL_TAG}_<input-stem>_predictions.csv. All other
+            # diagnostics use the plain canonical ${NAME}_predictions.csv.
+            if [ "${NAME}" = "phrog" ]; then
+                OUT_NAME="${PHROG_MODEL_TAG:-Caduceus}_$(basename "${CSV}" .csv)_predictions.csv"
+            else
+                OUT_NAME="${NAME}_predictions.csv"
+            fi
+            echo "    submitting ${JOB} -> ${OUT_NAME}..."
             sbatch \
                 --job-name="${JOB}" \
                 --output="${LOGDIR}/${JOB}_%j.out" \
                 --error="${LOGDIR}/${JOB}_%j.err" \
                 "${INF_FLAGS[@]}" \
-                --export="ALL,${INF_ENV},INPUT_CSV=${CSV},OUTPUT_FILENAME=${NAME}_predictions.csv" \
+                --export="ALL,${INF_ENV},INPUT_CSV=${CSV},OUTPUT_FILENAME=${OUT_NAME}" \
                 "${SCRIPT_DIR}/lambda_inference_job.sh"
             NUM_JOBS=$((NUM_JOBS + 1))
         done

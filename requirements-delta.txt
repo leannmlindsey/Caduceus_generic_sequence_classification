@@ -1,0 +1,77 @@
+# Caduceus LAMBDA replication — Delta-AI (NCSA) install, GH200 / aarch64.
+#
+# WHY THIS FILE EXISTS: caduceus_env.yml targets Biowulf x86 (python=3.8,
+# pytorch=2.2.0, mamba-ssm==1.2.0, causal-conv1d==1.2.0, flash-attn==2.5.6,
+# pytorch-lightning==1.8.6). NONE of those pins install on a GH200: aarch64 +
+# Hopper (sm_90), no py3.8 aarch64 CUDA wheels, and the 1.2.0 Mamba kernels
+# predate sm_90. Use python 3.11 + a modern CUDA torch (same base proven for
+# the dnabert2_env / generanno envs on Delta, 2026-06-24).
+#
+# BUILD SEQUENCE (run on a GH200 node; the Mamba kernels compile from source and
+# need nvcc, so do NOT build on a login node):
+#   conda create -y -p /work/hdd/bfzj/llindsey1/conda/envs/caduceus_env python=3.11
+#   conda activate /work/hdd/bfzj/llindsey1/conda/envs/caduceus_env
+#   pip install --no-cache-dir torch          # -> aarch64 cu13x build; verify cuda True
+#   python -c "import torch;print(torch.__version__,torch.version.cuda,torch.cuda.is_available())"
+#   # nvcc for the source builds (match torch's CUDA major); via conda or `module load`:
+#   conda install -y -c nvidia cuda-nvcc cuda-cudart-dev   # or: module load cuda/<ver>
+#   pip install --no-cache-dir -r requirements-delta.txt
+#   # Mamba kernels LAST, from source, after torch is in place (see risk #1):
+#   pip install --no-cache-dir --no-build-isolation causal-conv1d>=1.4.0
+#   pip install --no-cache-dir --no-build-isolation mamba-ssm>=2.2.2
+#   # validate (the honest test — runs a Mamba forward on GPU + loads the ckpt):
+#   python slurm_scripts/lambda_replication/test_caduceus_env.py \
+#       --ckpt-dir <.../caduceus-ps_seqlen-8k_d_model-256_n_layer-4_lr-8e-3>
+#
+# ----------------------------------------------------------------------------
+# THREE RISK POINTS that will likely need iteration (validate each with the
+# test script + a 1-genome inference, and for fine-tuning a 1-seed dry run):
+#
+#  1. mamba-ssm 1.x -> 2.x API. The repo was written against mamba-ssm 1.2.0.
+#     2.x is required for sm_90 but moved/renamed some internals. If `import
+#     caduceus` (the model code) fails after the bump, the fix is small import
+#     shims in the caduceus modeling files, NOT downgrading (1.2.0 won't run on
+#     GH200). causal-conv1d 1.4+ pairs with mamba-ssm 2.2+.
+#
+#  2. flash-attn is DROPPED. Caduceus-PS is pure (bidirectional) Mamba with no
+#     attention, so flash-attn is not needed. If some imported module references
+#     flash_attn unconditionally, wrap that import in try/except rather than
+#     building flash-attn on aarch64 (which is painful and unnecessary here).
+#     Do NOT uninstall triton: mamba-ssm 2.x uses torch's bundled Triton 3.x.
+#
+#  3. pytorch-lightning for FINE-TUNING only. Inference/embedding load the ckpt
+#     with torch.load (src/inference.py), so they do NOT need Lightning. But
+#     `python -m train` (fine-tuning) is built on the Caduceus Hydra+Lightning
+#     framework pinned to pl 1.8.6. Try pl==1.8.6 on py3.11 first; if its old
+#     API breaks under modern torch, bump to a 2.x and expect a few train.py /
+#     Trainer call-site fixes. Inference can proceed even while this is sorted.
+# ----------------------------------------------------------------------------
+#
+# torch is installed SEPARATELY (above), not pinned here — the correct wheel is
+# arch/CUDA-specific (plain `pip install torch` resolves the aarch64 CUDA build
+# on py3.11). mamba-ssm + causal-conv1d are also installed separately (source
+# build, --no-build-isolation so they see the already-installed torch).
+
+# --- framework: pin (the Caduceus train code expects these APIs) ---
+hydra-core==1.3.2
+omegaconf==2.3.0
+einops==0.7.0
+pytorch-lightning==1.8.6        # see risk #3; bump if it breaks under modern torch
+
+# --- left UNPINNED so pip picks py3.11/aarch64 wheels (not old source builds) ---
+transformers
+datasets
+scikit-learn
+numpy
+pandas
+matplotlib
+seaborn
+h5py
+pyfaidx
+pysam
+biopython
+huggingface-hub
+timm
+rich
+tqdm
+wandb

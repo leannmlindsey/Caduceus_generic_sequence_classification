@@ -30,13 +30,17 @@ echo "Started at: $(date)  Node: $(hostname)  Job: ${SLURM_JOB_ID:-N/A}"
 
 # Activate conda (bare style — no set -e; conda activate under set -e silently
 # kills SLURM jobs). Mirror setup_env.sh: PYTHONPATH=repo root, caduceus_env.
-module load CUDA/12.8
-source /data/lindseylm/conda/etc/profile.d/conda.sh
-conda activate "${CONDA_ENV:-caduceus_env}"
-if [ "${CONDA_DEFAULT_ENV}" != "${CONDA_ENV:-caduceus_env}" ]; then
-    echo "ERROR: could not activate conda env '${CONDA_ENV:-caduceus_env}' (active: '${CONDA_DEFAULT_ENV:-none}'). Aborting." >&2
-    exit 1
-fi
+# Delta-AI: jobs inherit the submitter's environment (sbatch --export=ALL).
+# ACTIVATE THE ENV ON THE LOGIN NODE BEFORE RUNNING THE DRIVER:
+#   conda activate /work/hdd/bfzj/llindsey1/conda/envs/caduceus_env
+# (Biowulf in-job activation disabled — dead /data conda.sh + wrong CUDA module.)
+# module load CUDA/12.8
+# source /data/lindseylm/conda/etc/profile.d/conda.sh
+# conda activate "${CONDA_ENV:-caduceus_env}"
+# if [ "${CONDA_DEFAULT_ENV}" != "${CONDA_ENV:-caduceus_env}" ]; then
+#     echo "ERROR: could not activate conda env '${CONDA_ENV:-caduceus_env}' (active: '${CONDA_DEFAULT_ENV:-none}'). Aborting." >&2
+#     exit 1
+# fi
 echo "  conda env: ${CONDA_DEFAULT_ENV}   python: $(command -v python)"
 export PYTHONNOUSERSITE=1
 
