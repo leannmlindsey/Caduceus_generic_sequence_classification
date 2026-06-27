@@ -23,6 +23,17 @@ import src.utils as utils
 import src.utils.train
 from src.dataloaders import SequenceDataset  # TODO make registry
 from src.tasks import decoders, encoders, tasks
+
+# torch>=2.6 defaults torch.load(weights_only=True), which rejects this repo's own
+# trusted Lightning .ckpt files (they pickle OmegaConf/hyperparameter objects).
+# Restore prior behavior so load_from_checkpoint / trainer.fit(ckpt_path=) /
+# trainer.test(ckpt_path=) / torch.load all work on torch 2.12 (Delta-AI GH200).
+# Safe: this repo only ever loads its own checkpoints.
+_ORIG_TORCH_LOAD = torch.load
+def _torch_load_weights_ok(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _ORIG_TORCH_LOAD(*args, **kwargs)
+torch.load = _torch_load_weights_ok
 from src.utils import registry
 from src.utils.optim_groups import add_optimizer_hooks
 

@@ -291,7 +291,8 @@ def load_model(
     model = CaduceusForInference(config, d_output=d_output, conjoin_test=conjoin_test)
 
     print(f"Loading checkpoint from: {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    # weights_only=False: trusted Lightning .ckpt; torch>=2.6 default would reject it
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
     if 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
