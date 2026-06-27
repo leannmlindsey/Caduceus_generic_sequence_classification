@@ -18,9 +18,8 @@
 #   4. bash slurm_scripts/lambda_replication/run_lambda_inference.sh
 
 
-# Absolute path to this lambda_replication dir on Biowulf (hardcoded so it is
-# correct no matter what directory the script is launched/submitted from).
-SCRIPT_DIR="/vf/users/lindseylm/GLM_EVALUATIONS/NAR_GENOMICS_LAMBDA_REPO/Caduceus_generic_sequence_classification/slurm_scripts/lambda_replication"
+# Self-derive this lambda_replication dir (portable: Biowulf or Delta).
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # REPO_ROOT is the repo root (holds train.py, src/, configs/).
 # slurm_scripts/lambda_replication -> ../.. == root.
 REPO_ROOT="$( cd "${SCRIPT_DIR}/../.." && pwd )"
