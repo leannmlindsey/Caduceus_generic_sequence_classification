@@ -75,8 +75,13 @@ command -v nvcc && nvcc --version | tail -1 || die "nvcc not on PATH after insta
 step "5/8  framework + utility deps"
 "${PIP}" install --no-cache-dir \
   hydra-core==1.3.2 omegaconf==2.3.0 einops==0.7.0 pytorch-lightning==1.8.6 \
-  transformers datasets scikit-learn numpy pandas matplotlib seaborn h5py \
+  transformers==4.38.1 datasets scikit-learn numpy pandas matplotlib seaborn h5py \
   pyfaidx pysam biopython huggingface-hub timm rich tqdm wandb
+
+# The Caduceus dataloader/model code imports these at module load even though
+# the LAMBDA CSV path does not use their datasets. --no-deps so they cannot
+# downgrade the torch/mamba stack (their import-time needs are light).
+"${PIP}" install --no-cache-dir --no-deps genomic-benchmarks==0.0.9 enformer-pytorch==0.8.8
 
 step "6/8  build causal-conv1d (sm_90, from source)"
 TORCH_CUDA_ARCH_LIST=9.0 MAX_JOBS="${MAX_JOBS:-8}" \
@@ -85,6 +90,14 @@ TORCH_CUDA_ARCH_LIST=9.0 MAX_JOBS="${MAX_JOBS:-8}" \
 step "7/8  build mamba-ssm (sm_90, from source)"
 TORCH_CUDA_ARCH_LIST=9.0 MAX_JOBS="${MAX_JOBS:-8}" \
   "${PIP}" install --no-cache-dir --no-build-isolation "mamba-ssm>=2.2.2"
+
+# flash-attn is REQUIRED: long_conv_lm.py imports flash_attn.modules.{block,mha,
+# mlp,embedding} + utils.generation.GenerationMixin unconditionally, so the
+# Caduceus model won't import without it. Heavy sm_90 source build (bounded by
+# MAX_JOBS). 2.5.6 (the Biowulf pin) won't build on torch 2.12, so use current.
+step "7b/8 build flash-attn (sm_90, from source) — REQUIRED by long_conv_lm"
+TORCH_CUDA_ARCH_LIST=9.0 MAX_JOBS="${MAX_JOBS:-4}" FLASH_ATTENTION_FORCE_BUILD=TRUE \
+  "${PIP}" install --no-cache-dir --no-build-isolation flash-attn
 
 set +e
 step "8/8  validate"

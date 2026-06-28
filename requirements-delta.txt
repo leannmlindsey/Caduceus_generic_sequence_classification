@@ -33,10 +33,13 @@
 #     shims in the caduceus modeling files, NOT downgrading (1.2.0 won't run on
 #     GH200). causal-conv1d 1.4+ pairs with mamba-ssm 2.2+.
 #
-#  2. flash-attn is DROPPED. Caduceus-PS is pure (bidirectional) Mamba with no
-#     attention, so flash-attn is not needed. If some imported module references
-#     flash_attn unconditionally, wrap that import in try/except rather than
-#     building flash-attn on aarch64 (which is painful and unnecessary here).
+#  2. flash-attn is REQUIRED (corrected). Although Caduceus-PS itself is pure
+#     Mamba, the repo's src/models/sequence/long_conv_lm.py imports
+#     flash_attn.modules.{block,mha,mlp,embedding} + utils.generation.GenerationMixin
+#     UNCONDITIONALLY, and dna_embedding.py imports long_conv_lm, so the model will
+#     not import without flash-attn. It must be built from source for sm_90 (the
+#     Biowulf 2.5.6 pin won't build on torch 2.12 — use current). See
+#     build_flashattn_delta.sbatch / step 7b in build_caduceus_env.sh.
 #     Do NOT uninstall triton: mamba-ssm 2.x uses torch's bundled Triton 3.x.
 #
 #  3. pytorch-lightning for FINE-TUNING only. Inference/embedding load the ckpt
@@ -57,9 +60,17 @@ hydra-core==1.3.2
 omegaconf==2.3.0
 einops==0.7.0
 pytorch-lightning==1.8.6        # see risk #3; bump if it breaks under modern torch
+# genomic-benchmarks + enformer-pytorch are imported at dataloader/model load even
+# though the LAMBDA CSV path does not use them. Install them SEPARATELY with
+# --no-deps (see build_caduceus_env.sh) so they don't downgrade torch/mamba:
+#   pip install --no-deps genomic-benchmarks==0.0.9 enformer-pytorch==0.8.8
+
+# transformers MUST be 4.x: 5.x rejects the CharacterTokenizer's add_special_tokens
+# init kwarg (raises "conflicts with the method add_special_tokens"). The Caduceus
+# code targets the 4.38 tokenizer API.
+transformers==4.38.1
 
 # --- left UNPINNED so pip picks py3.11/aarch64 wheels (not old source builds) ---
-transformers
 datasets
 scikit-learn
 numpy
