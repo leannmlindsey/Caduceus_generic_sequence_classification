@@ -612,7 +612,7 @@ def train_three_layer_nn(
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=10, verbose=False
+        optimizer, mode='max', factor=0.5, patience=10
     )
 
     best_val_f1 = 0
